@@ -3,131 +3,111 @@ import { Activity, HeartPulse, ShieldAlert, Stethoscope } from '@lucide/vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import type { Patient } from '@/types/clinical'
 
-interface Props {
-  patient: Patient
-}
-
-defineProps<Props>()
+defineProps<{ patient: Patient }>()
 </script>
 
 <template>
   <section class="patient-summary">
     <div class="summary-main">
       <div>
-        <p class="summary-label">当前患者</p>
-        <h2 class="summary-name">{{ patient.name }}</h2>
-      </div>
-      <StatusBadge :status="patient.status" type="patient" />
-    </div>
-    <div class="summary-meta">
-      <span>{{ patient.gender }} · {{ patient.age }} 岁</span>
-      <span>{{ patient.id }}</span>
-      <span>{{ patient.group }}</span>
-    </div>
-    <div class="metric-grid">
-      <div class="metric-item">
-        <HeartPulse :size="18" />
-        <span>血压</span>
-        <strong>{{ patient.metrics.bloodPressure }}</strong>
-      </div>
-      <div class="metric-item">
-        <Activity :size="18" />
-        <span>血糖</span>
-        <strong>{{ patient.metrics.glucose }}</strong>
-      </div>
-      <div class="metric-item">
-        <Stethoscope :size="18" />
-        <span>心率</span>
-        <strong>{{ patient.metrics.heartRate }}</strong>
-      </div>
-      <div class="metric-item">
-        <ShieldAlert :size="18" />
-        <span>风险</span>
-        <strong>{{ patient.metrics.riskScore }}</strong>
+        <div class="name-line">
+          <h2>{{ patient.name }}</h2>
+          <StatusBadge :status="patient.status" type="patient" />
+        </div>
+        <p>{{ patient.gender }} · {{ patient.age }} 岁 · {{ patient.id }}</p>
+        <p>{{ patient.diagnosis }} · {{ patient.group }}</p>
       </div>
     </div>
-    <div class="summary-section">
-      <span class="summary-section-title">病史</span>
-      <p>{{ patient.history }}</p>
-    </div>
-    <div class="summary-section">
-      <span class="summary-section-title">过敏史</span>
-      <p>{{ patient.allergies.join('、') }}</p>
-    </div>
-    <div class="summary-section">
-      <span class="summary-section-title">随访计划</span>
-      <p>{{ patient.plan }}</p>
-    </div>
+
+    <dl class="metric-list">
+      <div><HeartPulse :size="17" /><dt>血压</dt><dd>{{ patient.metrics.bloodPressure }}</dd></div>
+      <div><Activity :size="17" /><dt>血糖</dt><dd>{{ patient.metrics.glucose }}</dd></div>
+      <div><Stethoscope :size="17" /><dt>心率</dt><dd>{{ patient.metrics.heartRate || '--' }}</dd></div>
+      <div><ShieldAlert :size="17" /><dt>风险评分</dt><dd>{{ patient.metrics.riskScore || '--' }}</dd></div>
+    </dl>
+
+    <dl class="detail-list">
+      <div><dt>病史</dt><dd>{{ patient.history }}</dd></div>
+      <div><dt>过敏史</dt><dd>{{ patient.allergies.join('、') }}</dd></div>
+      <div><dt>管理计划</dt><dd>{{ patient.plan }}</dd></div>
+    </dl>
   </section>
 </template>
 
 <style scoped>
 .patient-summary {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
-.summary-main {
+.name-line {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
+  align-items: center;
+  gap: 10px;
 }
 
-.summary-label {
-  margin: 0 0 4px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.summary-name {
+.name-line h2 {
   margin: 0;
-  font-size: 22px;
+  color: var(--text-strong);
+  font-size: 21px;
 }
 
-.summary-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.summary-main p {
+  margin: 6px 0 0;
   color: var(--muted);
   font-size: 13px;
 }
 
-.metric-grid {
+.metric-list,
+.detail-list {
+  margin: 0;
+}
+
+.metric-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.metric-list > div {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 50px;
+  padding: 9px 11px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.metric-list > div:nth-child(2n) { border-right: 0; }
+.metric-list > div:nth-last-child(-n + 2) { border-bottom: 0; }
+.metric-list svg { color: var(--primary); }
+.metric-list dt { color: var(--muted); font-size: 12px; }
+.metric-list dd { margin: 0; color: var(--text-strong); font-size: 14px; font-weight: 700; }
+
+.detail-list {
+  display: grid;
+  gap: 13px;
+}
+
+.detail-list div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
   gap: 10px;
 }
 
-.metric-item {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 4px 8px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel-soft);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.metric-item strong {
-  grid-column: 2;
-  color: var(--text);
-  font-size: 15px;
-}
-
-.summary-section-title {
-  display: block;
-  margin-bottom: 5px;
+.detail-list dt {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
 }
 
-.summary-section p {
+.detail-list dd {
   margin: 0;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.65;
 }
 </style>

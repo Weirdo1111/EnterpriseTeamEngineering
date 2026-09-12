@@ -11,13 +11,13 @@ interface Props {
 const props = defineProps<Props>()
 
 const label = computed(() => {
-  if (props.type === 'patient') return patientStatusLabel(props.status as PatientStatus)
-  if (props.type === 'record') return recordStatusLabel(props.status as RecordStatus)
+  if (props.type === 'patient') return patientStatusLabel[props.status as PatientStatus]
+  if (props.type === 'record') return recordStatusLabel[props.status as RecordStatus]
   return props.status
 })
 
 const tone = computed(() => {
-  if (['stable', 'approved', '成功'].includes(props.status)) return 'success'
+  if (['stable', 'approved', 'archived', '成功'].includes(props.status)) return 'success'
   if (['warning', 'pending', '待复核'].includes(props.status)) return 'warning'
   if (['critical', 'returned', '拦截'].includes(props.status)) return 'danger'
   return 'info'
@@ -34,7 +34,7 @@ const tone = computed(() => {
   align-items: center;
   min-height: 26px;
   padding: 0 9px;
-  border-radius: 7px;
+  border-radius: 4px;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
