@@ -13,7 +13,7 @@ const chart = shallowRef<echarts.ECharts | null>(null)
 
 const option = computed(() => ({
   tooltip: { trigger: 'axis' },
-  grid: { left: 38, right: 18, top: 28, bottom: 28 },
+  grid: { left: 42, right: 18, top: 24, bottom: 28 },
   xAxis: {
     type: 'category',
     data: ['9/5', '9/6', '9/7', '9/8', '9/9', '9/10', '9/11'],
@@ -32,17 +32,17 @@ const option = computed(() => ({
       type: 'line',
       smooth: true,
       data: props.patient.status === 'stable' ? [124, 126, 125, 127, 124, 126, 126] : [142, 146, 148, 150, 149, 151, 152],
-      lineStyle: { width: 3, color: '#1769e0' },
-      itemStyle: { color: '#1769e0' },
-      areaStyle: { color: 'rgba(23, 105, 224, 0.08)' },
+      lineStyle: { width: 2, color: '#2f6f8f' },
+      itemStyle: { color: '#2f6f8f' },
+      areaStyle: { color: 'rgba(47, 111, 143, 0.06)' },
     },
     {
       name: '心率',
       type: 'line',
       smooth: true,
       data: props.patient.status === 'critical' ? [86, 88, 90, 92, 94, 95, 96] : [74, 76, 73, 78, 75, 77, props.patient.metrics.heartRate],
-      lineStyle: { width: 3, color: '#0f9f92' },
-      itemStyle: { color: '#0f9f92' },
+      lineStyle: { width: 2, color: '#2c8578' },
+      itemStyle: { color: '#2c8578' },
     },
   ],
 }))

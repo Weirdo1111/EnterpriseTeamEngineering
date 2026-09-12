@@ -2,7 +2,6 @@
 interface Props {
   title: string
   description: string
-  eyebrow?: string
 }
 
 defineProps<Props>()
@@ -11,7 +10,6 @@ defineProps<Props>()
 <template>
   <header class="page-header">
     <div class="page-copy">
-      <p v-if="eyebrow" class="page-eyebrow">{{ eyebrow }}</p>
       <h1 class="page-title">{{ title }}</h1>
       <p class="page-description">{{ description }}</p>
     </div>
@@ -26,40 +24,34 @@ defineProps<Props>()
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 20px;
+  gap: 24px;
+  min-height: 58px;
 }
 
 .page-copy {
   min-width: 0;
 }
 
-.page-eyebrow {
-  margin: 0 0 8px;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
 .page-title {
   margin: 0;
-  font-size: 26px;
+  color: var(--text-strong);
+  font-size: 25px;
   line-height: 1.25;
-  color: var(--text);
+  letter-spacing: -0.02em;
 }
 
 .page-description {
-  max-width: 760px;
-  margin: 8px 0 0;
+  max-width: 800px;
+  margin: 7px 0 0;
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .page-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   justify-content: flex-end;
 }
 

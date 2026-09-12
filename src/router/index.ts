@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
@@ -46,13 +47,25 @@ const router = createRouter({
           path: 'ai-assistant',
           name: 'ai-assistant',
           component: () => import('@/views/AiAssistantView.vue'),
-          meta: { title: 'AI/RAG 医疗助手' },
+          meta: { title: '智能辅助' },
+        },
+        {
+          path: 'remote-consultations',
+          name: 'remote-consultations',
+          component: () => import('@/views/RemoteConsultationsView.vue'),
+          meta: { title: '远程会诊' },
+        },
+        {
+          path: 'health-management',
+          name: 'health-management',
+          component: () => import('@/views/HealthManagementView.vue'),
+          meta: { title: '健康管理' },
         },
         {
           path: 'audit',
           name: 'audit',
           component: () => import('@/views/AuditView.vue'),
-          meta: { title: '审计日志', roles: ['admin', 'seniorDoctor'] },
+          meta: { title: '操作记录' },
         },
       ],
     },
@@ -77,6 +90,7 @@ router.beforeEach((to) => {
 
   const roles = to.meta.roles as string[] | undefined
   if (roles && !roles.includes(authStore.currentRole)) {
+    ElMessage.warning('当前身份没有访问该页面的权限，系统已记录本次拦截')
     return { name: 'dashboard' }
   }
 })

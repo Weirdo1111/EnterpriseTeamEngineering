@@ -1,6 +1,8 @@
 node_modules/
+node_modules.incomplete-install*/
 dist/
 .vite/
+work/
 *.local
 *.log
 tsconfig.tsbuildinfo
