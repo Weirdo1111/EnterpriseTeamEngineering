@@ -26,62 +26,62 @@ type NewPatientInput = Pick<Patient, 'name' | 'gender' | 'age' | 'diagnosis' | '
 const patientsSeed: Patient[] = [
   {
     id: 'P-202609-001',
-    name: '张建国',
-    gender: '男',
+    name: 'Jianguo Zhang',
+    gender: 'Male',
     age: 72,
-    diagnosis: '高血压合并糖尿病',
-    group: '慢病重点随访',
+    diagnosis: 'Hypertension with Diabetes',
+    group: 'Priority Chronic Care',
     status: 'warning',
-    allergies: ['青霉素'],
-    history: '高血压病史 12 年，2 型糖尿病 8 年，近期夜间血压波动明显。',
-    plan: '低盐饮食，监测晨起血压，每两周线上随访一次。',
+    allergies: ['Penicillin'],
+    history: 'Twelve-year history of hypertension and eight-year history of type 2 diabetes, with marked nighttime blood pressure fluctuations recently.',
+    plan: 'Maintain a low-sodium diet, monitor morning blood pressure, and attend an online follow-up every two weeks.',
     lastVisit: '2026-09-10',
-    ownerDoctor: '林若医生',
+    ownerDoctor: 'Dr. Riley Lin',
     metrics: { bloodPressure: '152/94', glucose: '8.6', heartRate: 86, riskScore: 74 },
   },
   {
     id: 'P-202609-002',
-    name: '陈秀兰',
-    gender: '女',
+    name: 'Xiulan Chen',
+    gender: 'Female',
     age: 68,
-    diagnosis: '冠心病术后康复',
-    group: '康复随访',
+    diagnosis: 'Post-PCI Cardiac Rehabilitation',
+    group: 'Rehabilitation Follow-up',
     status: 'stable',
-    allergies: ['无明确药物过敏'],
-    history: '冠脉支架术后 6 个月，规律服药，近期运动耐量提升。',
-    plan: '保持心脏康复训练，复诊前完成血脂与心电图检查。',
+    allergies: ['No known drug allergies'],
+    history: 'Six months after coronary stent placement; medication adherence is good and exercise tolerance has recently improved.',
+    plan: 'Continue cardiac rehabilitation and complete lipid and ECG tests before follow-up.',
     lastVisit: '2026-09-09',
-    ownerDoctor: '周明主任',
+    ownerDoctor: 'Dr. Michael Zhou',
     metrics: { bloodPressure: '126/78', glucose: '5.9', heartRate: 72, riskScore: 38 },
   },
   {
     id: 'P-202609-003',
-    name: '王德胜',
-    gender: '男',
+    name: 'Desheng Wang',
+    gender: 'Male',
     age: 81,
-    diagnosis: '慢阻肺急性加重风险',
-    group: '呼吸风险预警',
+    diagnosis: 'Risk of Acute COPD Exacerbation',
+    group: 'Respiratory Risk Alert',
     status: 'critical',
-    allergies: ['磺胺类'],
-    history: '慢阻肺 15 年，近三天咳嗽加重，活动后气促明显。',
-    plan: '重点监测血氧和呼吸频率，必要时转诊呼吸专科。',
+    allergies: ['Sulfonamides'],
+    history: 'Fifteen-year history of COPD, with worsening cough over the past three days and pronounced exertional dyspnea.',
+    plan: 'Closely monitor oxygen saturation and respiratory rate, with referral to respiratory medicine if needed.',
     lastVisit: '2026-09-11',
-    ownerDoctor: '林若医生',
+    ownerDoctor: 'Dr. Riley Lin',
     metrics: { bloodPressure: '138/82', glucose: '6.4', heartRate: 96, riskScore: 89 },
   },
   {
     id: 'P-202609-004',
-    name: '刘玉梅',
-    gender: '女',
+    name: 'Yumei Liu',
+    gender: 'Female',
     age: 75,
-    diagnosis: '骨质疏松与跌倒风险',
-    group: '居家安全管理',
+    diagnosis: 'Osteoporosis and Fall Risk',
+    group: 'Home Safety Management',
     status: 'warning',
-    allergies: ['头孢类'],
-    history: '一年内跌倒两次，腰椎骨密度下降，夜间起身频繁。',
-    plan: '补充钙剂与维生素 D，安排居家环境安全评估。',
+    allergies: ['Cephalosporins'],
+    history: 'Two falls in the past year, reduced lumbar bone density, and frequent nighttime awakenings.',
+    plan: 'Take calcium and vitamin D supplements and arrange a home safety assessment.',
     lastVisit: '2026-09-08',
-    ownerDoctor: '林若医生',
+    ownerDoctor: 'Dr. Riley Lin',
     metrics: { bloodPressure: '132/80', glucose: '6.8', heartRate: 78, riskScore: 67 },
   },
 ]
@@ -90,42 +90,42 @@ const consultationSeed: ConsultationSession[] = [
   {
     id: 'C-20260912-01',
     patientId: 'P-202609-001',
-    patientName: '张建国',
-    complaint: '晨起血压偏高、头胀',
+    patientName: 'Jianguo Zhang',
+    complaint: 'Elevated morning blood pressure and head pressure',
     status: 'active',
     unread: 0,
     updatedAt: '09:19',
     messages: [
-      { id: 'm1', sender: 'patient', content: '医生，我这两天早上血压还是偏高，头有点胀。', time: '09:12' },
-      { id: 'm2', sender: 'doctor', content: '今天晨起血压具体是多少？昨晚是否按时服药？', time: '09:14' },
-      { id: 'm3', sender: 'patient', content: '早上 152/94，昨晚药吃了，但是睡得不好。', time: '09:16', attachment: '居家血压记录.jpg' },
-      { id: 'm4', sender: 'doctor', content: '先连续记录三天晨起和睡前血压，我会结合用药和睡眠情况调整方案。', time: '09:19' },
+      { id: 'm1', sender: 'patient', content: 'Doctor, my blood pressure has still been high in the mornings for the past two days, and I feel some pressure in my head.', time: '09:12' },
+      { id: 'm2', sender: 'doctor', content: 'What was your exact blood pressure this morning? Did you take your medication on time last night?', time: '09:14' },
+      { id: 'm3', sender: 'patient', content: 'It was 152/94 this morning. I took my medicine last night, but I did not sleep well.', time: '09:16', attachment: 'Home-Blood-Pressure-Log.jpg' },
+      { id: 'm4', sender: 'doctor', content: 'Please record your morning and bedtime blood pressure for three consecutive days. I will review it with your medication and sleep pattern before adjusting the plan.', time: '09:19' },
     ],
   },
   {
     id: 'C-20260912-02',
     patientId: 'P-202609-003',
-    patientName: '王德胜',
-    complaint: '咳嗽加重、活动后气促',
+    patientName: 'Desheng Wang',
+    complaint: 'Worsening cough and exertional dyspnea',
     status: 'waiting',
     unread: 2,
     updatedAt: '09:31',
     messages: [
-      { id: 'm5', sender: 'patient', content: '医生，这三天咳嗽比之前重，走路也更喘。', time: '09:28' },
-      { id: 'm6', sender: 'patient', content: '家里测的血氧是 91%，需要去医院吗？', time: '09:31' },
+      { id: 'm5', sender: 'patient', content: 'Doctor, my cough has worsened over the past three days, and I get more breathless when walking.', time: '09:28' },
+      { id: 'm6', sender: 'patient', content: 'My oxygen saturation at home is 91%. Do I need to go to the hospital?', time: '09:31' },
     ],
   },
   {
     id: 'C-20260911-03',
     patientId: 'P-202609-002',
-    patientName: '陈秀兰',
-    complaint: '冠心病术后复诊',
+    patientName: 'Xiulan Chen',
+    complaint: 'Post-PCI follow-up',
     status: 'completed',
     unread: 0,
-    updatedAt: '昨天 16:32',
+    updatedAt: 'Yesterday 16:32',
     messages: [
-      { id: 'm7', sender: 'patient', content: '最近没有胸痛，步行比上个月轻松。', time: '16:18' },
-      { id: 'm8', sender: 'doctor', content: '继续规律服药，两周内复查血脂和心电图。', time: '16:32' },
+      { id: 'm7', sender: 'patient', content: 'I have had no recent chest pain, and walking feels easier than last month.', time: '16:18' },
+      { id: 'm8', sender: 'doctor', content: 'Continue taking your medication regularly and repeat the lipid panel and ECG within two weeks.', time: '16:32' },
     ],
   },
 ]
@@ -134,15 +134,15 @@ const recordsSeed: MedicalRecord[] = [
   {
     id: 'MR-8842',
     patientId: 'P-202609-001',
-    patientName: '张建国',
-    doctor: '林若医生',
-    chiefComplaint: '晨起血压升高伴头胀 2 天',
-    presentIllness: '患者近两日晨起血压约 152/94mmHg，诉头胀，夜间睡眠欠佳，降压药物自述规律服用。',
-    diagnosis: '高血压控制不佳；2 型糖尿病随访',
+    patientName: 'Jianguo Zhang',
+    doctor: 'Dr. Riley Lin',
+    chiefComplaint: 'Elevated morning blood pressure with head pressure for two days',
+    presentIllness: 'For the past two mornings, the patient reported blood pressure around 152/94 mmHg with head pressure and poor sleep, while reporting regular use of antihypertensive medication.',
+    diagnosis: 'Suboptimally Controlled Hypertension; Type 2 Diabetes Follow-up',
     orders: [
-      { id: 'O-101', type: '护理', content: '连续三日监测晨起及睡前血压', status: 'active' },
-      { id: 'O-102', type: '检验', content: '复查空腹血糖', status: 'active' },
-      { id: 'O-103', type: '检查', content: '评估睡眠与用药依从性', status: 'active' },
+      { id: 'O-101', type: 'Nursing', content: 'Monitor morning and bedtime blood pressure for three days', status: 'active' },
+      { id: 'O-102', type: 'Laboratory', content: 'Repeat fasting glucose', status: 'active' },
+      { id: 'O-103', type: 'Examination', content: 'Assess sleep and medication adherence', status: 'active' },
     ],
     status: 'pending',
     aiGenerated: true,
@@ -151,46 +151,46 @@ const recordsSeed: MedicalRecord[] = [
   {
     id: 'MR-8839',
     patientId: 'P-202609-002',
-    patientName: '陈秀兰',
-    doctor: '周明主任',
-    chiefComplaint: '冠心病术后复诊',
-    presentIllness: '术后规律服用抗血小板及调脂药物，近期无胸痛胸闷，步行耐量较前改善。',
-    diagnosis: '冠心病支架术后恢复期',
+    patientName: 'Xiulan Chen',
+    doctor: 'Dr. Michael Zhou',
+    chiefComplaint: 'Post-PCI follow-up',
+    presentIllness: 'The patient has taken antiplatelet and lipid-lowering medication regularly after surgery, reports no recent chest pain or tightness, and has improved walking tolerance.',
+    diagnosis: 'Recovery after Coronary Stent Placement',
     orders: [
-      { id: 'O-201', type: '药物', content: '继续二级预防用药', status: 'active' },
-      { id: 'O-202', type: '检验', content: '两周内复查血脂', status: 'active' },
-      { id: 'O-203', type: '护理', content: '维持心脏康复训练', status: 'active' },
+      { id: 'O-201', type: 'Medication', content: 'Continue secondary prevention medication', status: 'active' },
+      { id: 'O-202', type: 'Laboratory', content: 'Repeat lipid panel within two weeks', status: 'active' },
+      { id: 'O-203', type: 'Nursing', content: 'Continue cardiac rehabilitation', status: 'active' },
     ],
     status: 'approved',
     aiGenerated: false,
-    reviewNote: '记录完整，医嘱合理。',
+    reviewNote: 'The record is complete and the orders are appropriate.',
     updatedAt: '2026-09-11 16:40',
   },
 ]
 
 const auditSeed: AuditLog[] = [
-  { id: 'L-901', user: '林若医生', role: '医生', department: '老年医学科', action: '查看患者详情', resource: 'P-202609-001', ip: '10.12.8.24', time: '2026-09-12 09:10', result: '成功' },
-  { id: 'L-902', user: '林若医生', role: '医生', department: '老年医学科', action: 'AI 生成病历草稿', resource: 'MR-8842', ip: '10.12.8.24', time: '2026-09-12 09:29', result: '待复核' },
-  { id: 'L-903', user: '周明主任', role: '上级医生', department: '心内与老年慢病中心', action: '审核电子病历', resource: 'MR-8839', ip: '10.12.8.13', time: '2026-09-11 16:40', result: '成功' },
-  { id: 'L-904', user: '外部账号', role: '未知', department: '未知', action: '越权访问病历', resource: 'MR-8842', ip: '172.16.5.21', time: '2026-09-11 22:18', result: '拦截' },
+  { id: 'L-901', user: 'Dr. Riley Lin', role: 'Physician', department: 'Geriatric Medicine', action: 'Viewed patient details', resource: 'P-202609-001', ip: '10.12.8.24', time: '2026-09-12 09:10', result: 'Success' },
+  { id: 'L-902', user: 'Dr. Riley Lin', role: 'Physician', department: 'Geriatric Medicine', action: 'Generated medical record draft with AI', resource: 'MR-8842', ip: '10.12.8.24', time: '2026-09-12 09:29', result: 'Pending Review' },
+  { id: 'L-903', user: 'Dr. Michael Zhou', role: 'Senior Physician', department: 'Cardiology & Geriatric Care', action: 'Reviewed medical record', resource: 'MR-8839', ip: '10.12.8.13', time: '2026-09-11 16:40', result: 'Success' },
+  { id: 'L-904', user: 'External Account', role: 'Unknown', department: 'Unknown', action: 'Unauthorized record access', resource: 'MR-8842', ip: '172.16.5.21', time: '2026-09-11 22:18', result: 'Blocked' },
 ]
 
 const referencesSeed: RagReference[] = [
-  { id: 'R-01', title: '老年高血压分层管理建议', kind: '临床指南', excerpt: '家庭血压监测应结合多日读数和用药依从性综合判断。' },
-  { id: 'R-02', title: '糖尿病合并高血压用药注意事项', kind: '药品说明', excerpt: '调整方案前需核对过敏史、合并用药和体位性低血压风险。' },
-  { id: 'R-03', title: '晨峰血压升高随访记录', kind: '脱敏病例', excerpt: '相似记录显示睡眠情况可能影响晨起血压，需要连续监测。' },
+  { id: 'R-01', title: 'Recommendations for Stratified Management of Geriatric Hypertension', kind: 'Clinical Guideline', excerpt: 'Home blood pressure monitoring should be interpreted using multiple days of readings together with medication adherence.' },
+  { id: 'R-02', title: 'Medication Considerations for Diabetes with Hypertension', kind: 'Medication Information', excerpt: 'Before adjusting the plan, review allergies, concomitant medications, and the risk of orthostatic hypotension.' },
+  { id: 'R-03', title: 'Follow-up Record for Elevated Morning Blood Pressure', kind: 'De-identified Case', excerpt: 'Similar records indicate that sleep may affect morning blood pressure and continuous monitoring is needed.' },
 ]
 
 const remoteSeed: RemoteConsultation[] = [
   {
     id: 'RC-240912-01',
     patientId: 'P-202609-003',
-    patientName: '王德胜',
-    specialty: '呼吸内科',
-    reason: '慢阻肺患者近三日咳嗽、气促加重，居家血氧最低 91%。',
-    requester: '林若医生',
-    experts: ['赵启航 主任医师'],
-    materials: ['近三月门诊病历.pdf', '胸部 CT 影像.zip', '居家血氧记录.xlsx'],
+    patientName: 'Desheng Wang',
+    specialty: 'Respiratory Medicine',
+    reason: 'The patient with COPD has had worsening cough and dyspnea for three days, with home oxygen saturation as low as 91%.',
+    requester: 'Dr. Riley Lin',
+    experts: ['Qihang Zhao Chief Physician'],
+    materials: ['Outpatient-Records-Last-3-Months.pdf', 'Chest-CT-Images.zip', 'Home-Oxygen-Log.xlsx'],
     status: 'accepted',
     scheduledAt: '2026-09-12 14:30',
     opinion: '',
@@ -198,40 +198,40 @@ const remoteSeed: RemoteConsultation[] = [
   {
     id: 'RC-240911-02',
     patientId: 'P-202609-002',
-    patientName: '陈秀兰',
-    specialty: '心脏康复',
-    reason: '冠心病支架术后六个月康复方案评估。',
-    requester: '周明主任',
-    experts: ['孙宁 副主任医师', '康复治疗师 李禾'],
-    materials: ['术后病历.pdf', '近期心电图.pdf'],
+    patientName: 'Xiulan Chen',
+    specialty: 'Cardiac Rehabilitation',
+    reason: 'Assessment of the rehabilitation plan six months after coronary stent placement.',
+    requester: 'Dr. Michael Zhou',
+    experts: ['Ning Sun Associate Chief Physician', 'Rehabilitation Therapist He Li'],
+    materials: ['Postoperative-Record.pdf', 'Recent-ECG.pdf'],
     status: 'completed',
     scheduledAt: '2026-09-11 15:00',
-    opinion: '继续二级预防用药，维持中等强度康复训练，两周内复查血脂。',
-    report: '会诊认为患者术后恢复平稳，当前方案可继续执行。建议两周内完成血脂与心电图复查，并根据结果调整运动处方。',
+    opinion: 'Continue secondary prevention medication and moderate-intensity rehabilitation; repeat the lipid panel within two weeks.',
+    report: 'The consultation concluded that postoperative recovery is stable and the current plan may continue. Repeat the lipid panel and ECG within two weeks and adjust the exercise prescription based on the results.',
   },
 ]
 
 const healthPlansSeed: HealthPlan[] = patientsSeed.map((patient) => ({
   patientId: patient.id,
-  goals: patient.status === 'stable' ? '维持当前指标稳定，提升运动耐量。' : '降低近期异常指标，避免病情进一步加重。',
+  goals: patient.status === 'stable' ? 'Keep current indicators stable and improve exercise tolerance.' : 'Reduce recent abnormal readings and prevent further deterioration.',
   measures: patient.plan,
-  reviewCycle: patient.status === 'critical' ? '每周评估' : '每两周评估',
+  reviewCycle: patient.status === 'critical' ? 'Weekly' : 'Every Two Weeks',
   updatedAt: '2026-09-11',
 }))
 
 const remindersSeed: ReminderTask[] = [
-  { id: 'RT-01', patientId: 'P-202609-001', type: '监测', content: '晨起及睡前测量血压', dueAt: '每日 07:30 / 21:00', status: 'pending' },
-  { id: 'RT-02', patientId: 'P-202609-001', type: '复诊', content: '线上复诊并提交三日血压记录', dueAt: '2026-09-15 09:00', status: 'pending' },
-  { id: 'RT-03', patientId: 'P-202609-002', type: '复诊', content: '复查血脂', dueAt: '2026-09-24 08:30', status: 'pending' },
+  { id: 'RT-01', patientId: 'P-202609-001', type: 'Monitoring', content: 'Measure blood pressure in the morning and at bedtime', dueAt: 'Daily 07:30 / 21:00', status: 'pending' },
+  { id: 'RT-02', patientId: 'P-202609-001', type: 'Follow-up', content: 'Attend online follow-up and submit a three-day blood pressure log', dueAt: '2026-09-15 09:00', status: 'pending' },
+  { id: 'RT-03', patientId: 'P-202609-002', type: 'Follow-up', content: 'Repeat lipid panel', dueAt: '2026-09-24 08:30', status: 'pending' },
 ]
 
 const assessmentsSeed: HealthAssessment[] = [
-  { id: 'HA-01', patientId: 'P-202609-001', date: '2026-09-10', level: '中风险', summary: '晨峰血压波动，睡眠质量下降。', advice: '连续记录血压三日，复核用药依从性。' },
-  { id: 'HA-02', patientId: 'P-202609-002', date: '2026-09-09', level: '低风险', summary: '术后恢复平稳，运动耐量提升。', advice: '保持现有康复训练与二级预防方案。' },
+  { id: 'HA-01', patientId: 'P-202609-001', date: '2026-09-10', level: 'Moderate Risk', summary: 'Morning blood pressure fluctuates and sleep quality has declined.', advice: 'Record blood pressure for three consecutive days and review medication adherence.' },
+  { id: 'HA-02', patientId: 'P-202609-002', date: '2026-09-09', level: 'Low Risk', summary: 'Postoperative recovery is stable and exercise tolerance has improved.', advice: 'Continue the current rehabilitation and secondary prevention plan.' },
 ]
 
 function displayTime() {
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -262,7 +262,7 @@ export const useClinicalStore = defineStore('clinical', () => {
   const waitingConsultations = computed(() => consultations.filter((item) => item.status === 'waiting'))
   const pendingRemoteConsultations = computed(() => remoteConsultations.filter((item) => item.status === 'pending' || item.status === 'accepted'))
 
-  function recordAudit(actor: AuditActor, action: string, resource: string, result: AuditLog['result'] = '成功') {
+  function recordAudit(actor: AuditActor, action: string, resource: string, result: AuditLog['result'] = 'Success') {
     auditLogs.unshift({
       id: `L-${Date.now()}`,
       user: actor.name,
@@ -278,7 +278,7 @@ export const useClinicalStore = defineStore('clinical', () => {
 
   function selectPatient(id: string, actor?: AuditActor) {
     selectedPatientId.value = id
-    if (actor) recordAudit(actor, '查看患者详情', id)
+    if (actor) recordAudit(actor, 'Viewed patient details', id)
   }
 
   function addPatient(input: NewPatientInput, actor: AuditActor) {
@@ -286,16 +286,16 @@ export const useClinicalStore = defineStore('clinical', () => {
       ...input,
       id: `P-202609-${String(patients.length + 1).padStart(3, '0')}`,
       status: 'stable',
-      allergies: ['待补充'],
-      history: '新建患者，病史资料待补充。',
-      plan: '待制定健康管理计划。',
-      lastVisit: '尚未问诊',
+      allergies: ['To be completed'],
+      history: 'New patient; medical history needs to be completed.',
+      plan: 'Health management plan pending.',
+      lastVisit: 'No consultations yet',
       ownerDoctor: actor.name,
       metrics: { bloodPressure: '--', glucose: '--', heartRate: 0, riskScore: 0 },
     }
     patients.unshift(patient)
-    healthPlans.push({ patientId: patient.id, goals: '待设置', measures: '待设置', reviewCycle: '每月评估', updatedAt: displayTime().slice(0, 10) })
-    recordAudit(actor, '新建患者档案', patient.id)
+    healthPlans.push({ patientId: patient.id, goals: 'Not set', measures: 'Not set', reviewCycle: 'Monthly', updatedAt: displayTime().slice(0, 10) })
+    recordAudit(actor, 'Create Patient Profile', patient.id)
     return patient
   }
 
@@ -303,12 +303,12 @@ export const useClinicalStore = defineStore('clinical', () => {
     const patient = patients.find((item) => item.id === id)
     if (!patient) return
     Object.assign(patient, patch)
-    recordAudit(actor, '修改患者档案', id)
+    recordAudit(actor, 'Updated patient profile', id)
   }
 
   function batchGroup(ids: string[], group: string, actor: AuditActor) {
     patients.filter((patient) => ids.includes(patient.id)).forEach((patient) => { patient.group = group })
-    recordAudit(actor, '批量调整患者分组', `${ids.length} 名患者`)
+    recordAudit(actor, 'Changed patient groups in bulk', `${ids.length} patients`)
   }
 
   function selectConsultation(id: string) {
@@ -326,9 +326,9 @@ export const useClinicalStore = defineStore('clinical', () => {
       sender,
       content,
       attachment,
-      time: new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()),
+      time: new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()),
     })
-    selectedConsultation.value.updatedAt = '刚刚'
+    selectedConsultation.value.updatedAt = 'Just now'
   }
 
   function startConsultation(id: string, actor: AuditActor) {
@@ -336,14 +336,14 @@ export const useClinicalStore = defineStore('clinical', () => {
     if (!session) return
     session.status = 'active'
     session.unread = 0
-    recordAudit(actor, '接收图文问诊', id)
+    recordAudit(actor, 'Accepted online consultation', id)
   }
 
   function completeConsultation(id: string, actor: AuditActor) {
     const session = consultations.find((item) => item.id === id)
     if (!session) return
     session.status = 'completed'
-    recordAudit(actor, '结束图文问诊', id)
+    recordAudit(actor, 'Completed online consultation', id)
   }
 
   function createAiRecord(actor: AuditActor, patientId = selectedPatient.value.id) {
@@ -356,19 +356,19 @@ export const useClinicalStore = defineStore('clinical', () => {
       patientId: patient.id,
       patientName: patient.name,
       doctor: actor.name,
-      chiefComplaint: patient.status === 'critical' ? '咳嗽气促加重，存在急性加重风险' : '线上问诊后需生成结构化随访记录',
-      presentIllness: `${patient.history} 本次结合问诊记录与居家健康数据形成草稿，需医生复核。`,
+      chiefComplaint: patient.status === 'critical' ? 'Worsening cough and dyspnea with risk of acute exacerbation' : 'Structured follow-up record required after online consultation',
+      presentIllness: `${patient.history} This draft combines the consultation record with home health data and requires physician review.`,
       diagnosis: patient.diagnosis,
       orders: [
-        { id: `O-${Date.now()}-1`, type: '护理', content: '持续监测关键生命体征', status: 'active' },
-        { id: `O-${Date.now()}-2`, type: '检查', content: '完善相关复查项目', status: 'active' },
+        { id: `O-${Date.now()}-1`, type: 'Nursing', content: 'Continue monitoring key vital signs', status: 'active' },
+        { id: `O-${Date.now()}-2`, type: 'Examination', content: 'Complete the relevant follow-up examinations', status: 'active' },
       ],
       status: 'draft',
       aiGenerated: true,
       updatedAt: displayTime(),
     }
     records.unshift(record)
-    recordAudit(actor, 'AI 生成病历草稿', record.id, '待复核')
+    recordAudit(actor, 'Generated medical record draft with AI', record.id, 'Pending Review')
     return record
   }
 
@@ -378,28 +378,28 @@ export const useClinicalStore = defineStore('clinical', () => {
     Object.assign(record, fields)
     record.status = submit ? 'pending' : 'draft'
     record.updatedAt = displayTime()
-    recordAudit(actor, submit ? '提交电子病历审核' : '保存电子病历草稿', id, submit ? '待复核' : '成功')
+    recordAudit(actor, submit ? 'Submitted medical record for review' : 'Saved medical record draft', id, submit ? 'Pending Review' : 'Success')
   }
 
   function addOrder(recordId: string, order: Pick<MedicalOrder, 'type' | 'content'>, actor: AuditActor) {
     const record = records.find((item) => item.id === recordId)
     if (!record) return
     record.orders.push({ ...order, id: `O-${Date.now()}`, status: 'active' })
-    recordAudit(actor, '新增医嘱', recordId)
+    recordAudit(actor, 'Add Order', recordId)
   }
 
   function updateOrder(recordId: string, orderId: string, content: string, actor: AuditActor) {
     const order = records.find((item) => item.id === recordId)?.orders.find((item) => item.id === orderId)
     if (!order) return
     order.content = content
-    recordAudit(actor, '修改医嘱', recordId)
+    recordAudit(actor, 'Edit Order', recordId)
   }
 
   function stopOrder(recordId: string, orderId: string, actor: AuditActor) {
     const order = records.find((item) => item.id === recordId)?.orders.find((item) => item.id === orderId)
     if (!order) return
     order.status = 'stopped'
-    recordAudit(actor, '停止医嘱', recordId)
+    recordAudit(actor, 'Stop Order', recordId)
   }
 
   function updateRecordStatus(id: string, status: RecordStatus, reviewNote: string, actor: AuditActor) {
@@ -408,8 +408,8 @@ export const useClinicalStore = defineStore('clinical', () => {
     record.status = status
     record.reviewNote = reviewNote
     record.updatedAt = displayTime()
-    const action = status === 'approved' ? '审核通过电子病历' : status === 'returned' ? '退回电子病历' : status === 'archived' ? '归档电子病历' : '更新电子病历状态'
-    recordAudit(actor, action, id, status === 'returned' ? '待复核' : '成功')
+    const action = status === 'approved' ? 'Approved medical record' : status === 'returned' ? 'Returned medical record' : status === 'archived' ? 'Archived medical record' : 'Updated medical record status'
+    recordAudit(actor, action, id, status === 'returned' ? 'Pending Review' : 'Success')
   }
 
   function createRemoteConsultation(input: Pick<RemoteConsultation, 'patientId' | 'specialty' | 'reason' | 'scheduledAt'>, actor: AuditActor) {
@@ -421,12 +421,12 @@ export const useClinicalStore = defineStore('clinical', () => {
       patientName: patient.name,
       requester: actor.name,
       experts: [],
-      materials: ['患者电子病历.pdf'],
+      materials: ['Patient-Medical-Record.pdf'],
       status: 'pending',
       opinion: '',
     }
     remoteConsultations.unshift(consultation)
-    recordAudit(actor, '发起远程会诊', consultation.id)
+    recordAudit(actor, 'Start Remote Consultation', consultation.id)
     return consultation
   }
 
@@ -434,7 +434,7 @@ export const useClinicalStore = defineStore('clinical', () => {
     const item = remoteConsultations.find((consultation) => consultation.id === id)
     if (!item) return
     item.status = status
-    const action = status === 'accepted' ? '接收远程会诊' : status === 'inProgress' ? '开始远程会诊' : '更新远程会诊'
+    const action = status === 'accepted' ? 'Accepted remote consultation' : status === 'inProgress' ? 'Started remote consultation' : 'Updated remote consultation'
     recordAudit(actor, action, id)
   }
 
@@ -442,7 +442,7 @@ export const useClinicalStore = defineStore('clinical', () => {
     const item = remoteConsultations.find((consultation) => consultation.id === id)
     if (!item || item.experts.includes(expert)) return
     item.experts.push(expert)
-    recordAudit(actor, '添加会诊专家', id)
+    recordAudit(actor, 'Add Consultation Specialist', id)
   }
 
   function completeRemoteConsultation(id: string, opinion: string, actor: AuditActor) {
@@ -450,8 +450,8 @@ export const useClinicalStore = defineStore('clinical', () => {
     if (!item) return
     item.status = 'completed'
     item.opinion = opinion
-    item.report = `患者：${item.patientName}\n会诊专科：${item.specialty}\n参加专家：${item.experts.join('、') || '待补充'}\n会诊意见：${opinion}\n后续安排：由责任医生结合患者当前情况执行并持续随访。`
-    recordAudit(actor, '完成远程会诊并生成报告', id)
+    item.report = `Patient: ${item.patientName}\nSpecialty: ${item.specialty}\nParticipating specialists: ${item.experts.join(', ') || 'To be completed'}\nConsultation opinion: ${opinion}\nFollow-up plan: The responsible physician will implement the plan based on the patient's current condition and continue follow-up.`
+    recordAudit(actor, 'Completed remote consultation and generated report', id)
   }
 
   function saveHealthPlan(patientId: string, fields: Pick<HealthPlan, 'goals' | 'measures' | 'reviewCycle'>, actor: AuditActor) {
@@ -460,24 +460,24 @@ export const useClinicalStore = defineStore('clinical', () => {
     Object.assign(plan, fields, { updatedAt: displayTime().slice(0, 10) })
     const patient = patients.find((item) => item.id === patientId)
     if (patient) patient.plan = fields.measures
-    recordAudit(actor, '修改健康管理计划', patientId)
+    recordAudit(actor, 'Updated health management plan', patientId)
   }
 
   function addReminder(input: Omit<ReminderTask, 'id' | 'status'>, actor: AuditActor) {
     reminders.unshift({ ...input, id: `RT-${Date.now()}`, status: 'pending' })
-    recordAudit(actor, '新增健康提醒', input.patientId)
+    recordAudit(actor, 'Add Health Reminder', input.patientId)
   }
 
   function completeReminder(id: string, actor: AuditActor) {
     const reminder = reminders.find((item) => item.id === id)
     if (!reminder) return
     reminder.status = 'completed'
-    recordAudit(actor, '完成健康提醒', reminder.patientId)
+    recordAudit(actor, 'Completed health reminder', reminder.patientId)
   }
 
   function addAssessment(input: Omit<HealthAssessment, 'id' | 'date'>, actor: AuditActor) {
     assessments.unshift({ ...input, id: `HA-${Date.now()}`, date: displayTime().slice(0, 10) })
-    recordAudit(actor, '新增健康评估', input.patientId)
+    recordAudit(actor, 'Add Health Assessment', input.patientId)
   }
 
   return {

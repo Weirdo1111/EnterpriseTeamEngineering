@@ -13,27 +13,27 @@ const router = useRouter()
 const authStore = useAuthStore()
 const clinicalStore = useClinicalStore()
 const loading = shallowRef(false)
-const updatedAt = shallowRef('根据当前患者资料生成')
+const updatedAt = shallowRef('Generated from the current patient data')
 const form = reactive<{ task: AssistantTask; prompt: string }>({
   task: 'emr',
-  prompt: '张建国，72 岁，高血压合并糖尿病。晨起血压 152/94mmHg，伴头胀、睡眠欠佳，青霉素过敏。',
+  prompt: 'Jianguo Zhang, age 72, has hypertension and diabetes. Morning blood pressure is 152/94 mmHg, with head pressure, poor sleep, and a penicillin allergy.',
 })
 
 const actor = computed(() => ({ name: authStore.profile.name, role: authStore.roleLabel, department: authStore.profile.department }))
 const canOperate = computed(() => authStore.currentRole !== 'admin')
-const resultTitle = computed(() => form.task === 'summary' ? '问诊摘要' : form.task === 'cases' ? '相似记录' : form.task === 'order' ? '医嘱风险核验' : '结构化病历草稿')
+const resultTitle = computed(() => form.task === 'summary' ? 'Consultation Summary' : form.task === 'cases' ? 'Similar Records' : form.task === 'order' ? 'Order Safety Check' : 'Structured Medical Record Draft')
 const generatedContent = shallowRef([
-  '主诉：晨起血压升高伴头胀 2 天。',
-  '现病史：既往高血压、2 型糖尿病，近期睡眠欠佳，晨起血压约 152/94mmHg。',
-  '初步判断：血压控制欠佳，需结合连续家庭血压监测与用药依从性评估。',
-  '处理建议：记录晨起及睡前血压三日，复查空腹血糖，由医生复核后决定是否调整方案。',
+  'Chief complaint: Elevated morning blood pressure with head pressure for two days.',
+  'Present illness: History of hypertension and type 2 diabetes, recent poor sleep, and morning blood pressure around 152/94 mmHg.',
+  'Initial assessment: Blood pressure is not adequately controlled; evaluate continuous home readings and medication adherence.',
+  'Plan: Record morning and bedtime blood pressure for three days and repeat fasting glucose; a physician should review the results before adjusting treatment.',
 ])
 
 const taskOptions = [
-  { value: 'emr' as const, title: '病历草稿', description: '从问诊内容整理结构化记录', icon: ClipboardPlus },
-  { value: 'summary' as const, title: '问诊摘要', description: '提取主诉、病史与随访重点', icon: Sparkles },
-  { value: 'cases' as const, title: '相似记录', description: '查找脱敏病例与相关指南', icon: SearchCheck },
-  { value: 'order' as const, title: '医嘱核验', description: '核对过敏史和老年用药风险', icon: ShieldAlert },
+  { value: 'emr' as const, title: 'Record Draft', description: 'Create a structured record from consultation content', icon: ClipboardPlus },
+  { value: 'summary' as const, title: 'Consultation Summary', description: 'Extract the complaint, history, and follow-up priorities', icon: Sparkles },
+  { value: 'cases' as const, title: 'Similar Records', description: 'Find de-identified cases and relevant guidelines', icon: SearchCheck },
+  { value: 'order' as const, title: 'Order Safety Check', description: 'Check allergies and geriatric medication risks', icon: ShieldAlert },
 ]
 
 function selectTask(task: AssistantTask) {
@@ -43,67 +43,67 @@ function selectTask(task: AssistantTask) {
 function generate() {
   if (!canOperate.value) return
   if (!form.prompt.trim()) {
-    ElMessage.warning('请先输入需要处理的患者资料或问诊内容')
+    ElMessage.warning('Enter patient information or consultation content first.')
     return
   }
   loading.value = true
   window.setTimeout(() => {
     if (form.task === 'cases') {
       generatedContent.value = [
-        '脱敏记录一：高血压合并睡眠障碍患者出现晨峰血压升高，连续监测后调整随访频率。',
-        '脱敏记录二：糖尿病患者血压波动，复核血糖和用药依从性后再调整长期方案。',
-        '参考要点：单次血压读数不能直接作为长期用药调整依据。',
+        'De-identified record 1: A patient with hypertension and sleep disturbance developed elevated morning blood pressure; follow-up frequency was adjusted after continuous monitoring.',
+        'De-identified record 2: A patient with diabetes had fluctuating blood pressure; the long-term plan was adjusted after reviewing glucose and medication adherence.',
+        'Reference point: A single blood pressure reading should not be used alone to adjust long-term medication.',
       ]
     } else if (form.task === 'order') {
       generatedContent.value = [
-        '过敏史：患者记录青霉素过敏，相关药物应规避。',
-        '老年用药：调整降压方案时需关注体位性低血压与夜间跌倒风险。',
-        '核验结论：当前内容未发现明确冲突，正式医嘱仍需医生结合检查结果确认。',
+        'Allergy history: A penicillin allergy is documented; related medications should be avoided.',
+        'Geriatric medication: When adjusting antihypertensive therapy, consider orthostatic hypotension and nighttime fall risk.',
+        'Check result: No clear conflict was found, but formal orders must still be confirmed by a physician using examination results.',
       ]
     } else if (form.task === 'summary') {
       generatedContent.value = [
-        '主诉：晨起血压偏高并伴头胀。',
-        '相关病史：高血压、2 型糖尿病，近期睡眠欠佳。',
-        '已知风险：青霉素过敏，晨峰血压波动。',
-        '下一步：完成三日家庭血压记录并复查空腹血糖。',
+        'Chief complaint: Elevated morning blood pressure with head pressure.',
+        'Relevant history: Hypertension, type 2 diabetes, and recent poor sleep.',
+        'Known risks: Penicillin allergy and fluctuating morning blood pressure.',
+        'Next step: Complete a three-day home blood pressure log and repeat fasting glucose.',
       ]
     } else {
       generatedContent.value = [
-        '主诉：晨起血压升高伴头胀 2 天。',
-        '现病史：既往高血压、2 型糖尿病，近期睡眠欠佳，晨起血压 152/94mmHg。',
-        '初步诊断：高血压控制欠佳；慢病随访。',
-        '处理建议：连续三日监测晨起和睡前血压，复查空腹血糖，评估用药依从性。',
+        'Chief complaint: Elevated morning blood pressure with head pressure for two days.',
+        'Present illness: History of hypertension and type 2 diabetes, recent poor sleep, and morning blood pressure of 152/94 mmHg.',
+        'Preliminary diagnosis: Suboptimally controlled hypertension; chronic disease follow-up.',
+        'Plan: Monitor morning and bedtime blood pressure for three days, repeat fasting glucose, and assess medication adherence.',
       ]
     }
-    updatedAt.value = '刚刚更新 · 待医生确认'
-    clinicalStore.recordAudit(actor.value, `使用智能辅助：${resultTitle.value}`, clinicalStore.selectedPatient.id, '待复核')
+    updatedAt.value = 'Updated just now · Awaiting physician confirmation'
+    clinicalStore.recordAudit(actor.value, `Used AI assistant: ${resultTitle.value}`, clinicalStore.selectedPatient.id, 'Pending Review')
     loading.value = false
-    ElMessage.success('辅助结果已生成')
+    ElMessage.success('Assistant result generated.')
   }, 560)
 }
 
 function createDraft() {
   if (authStore.currentRole === 'admin') {
-    ElMessage.warning('管理员不能创建诊疗病历')
+    ElMessage.warning('Administrators cannot create clinical records.')
     return
   }
   const record = clinicalStore.createAiRecord(actor.value)
-  ElMessage.success('内容已写入病历草稿，请继续核对')
+  ElMessage.success('Content added to the record draft. Continue reviewing it.')
   router.push({ path: '/records', query: { record: record.id } })
 }
 </script>
 
 <template>
   <div class="view-stack">
-    <PageHeader title="智能辅助" description="整理问诊内容、检索参考资料并核对常见风险，生成结果不直接写入正式病历">
-      <el-button :icon="Sparkles" type="primary" :loading="loading" :disabled="!canOperate" @click="generate">生成结果</el-button>
+    <PageHeader title="AI Assistant" description="Organize consultation content, retrieve references, and check common risks without writing results directly to the official record">
+      <el-button :icon="Sparkles" type="primary" :loading="loading" :disabled="!canOperate" @click="generate">Generate Result</el-button>
     </PageHeader>
 
-    <p v-if="!canOperate" class="permission-note">当前以管理员身份查看。管理员可检查辅助记录与参考来源，但不能生成诊疗内容。</p>
+    <p v-if="!canOperate" class="permission-note">You are viewing as an administrator. Administrators can inspect assistant activity and sources but cannot generate clinical content.</p>
 
     <section class="assistant-layout">
       <article class="panel task-panel">
-        <div class="panel-header"><div><h2 class="panel-title">辅助任务</h2><p class="panel-subtitle">选择当前需要处理的内容</p></div></div>
+        <div class="panel-header"><div><h2 class="panel-title">Assistant Task</h2><p class="panel-subtitle">Choose the content to process</p></div></div>
         <div class="task-list">
           <button v-for="task in taskOptions" :key="task.value" type="button" :class="{ active: form.task === task.value }" @click="selectTask(task.value)">
             <component :is="task.icon" :size="18" />
@@ -114,21 +114,21 @@ function createDraft() {
 
       <div class="assistant-main">
         <article class="panel input-panel">
-          <div class="panel-header"><div><h2 class="panel-title">输入内容</h2><p class="panel-subtitle">可粘贴患者摘要、问诊对话或拟开医嘱</p></div></div>
-          <div class="panel-body"><el-input v-model="form.prompt" type="textarea" :rows="6" resize="none" :disabled="!canOperate" /><div class="input-foot"><span>请勿将生成内容直接作为诊疗结论</span><el-button :loading="loading" type="primary" :disabled="!canOperate" @click="generate">开始处理</el-button></div></div>
+          <div class="panel-header"><div><h2 class="panel-title">Input</h2><p class="panel-subtitle">Paste a patient summary, consultation dialogue, or proposed orders</p></div></div>
+          <div class="panel-body"><el-input v-model="form.prompt" type="textarea" :rows="6" resize="none" :disabled="!canOperate" /><div class="input-foot"><span>Do not use generated content directly as a clinical conclusion</span><el-button :loading="loading" type="primary" :disabled="!canOperate" @click="generate">Process</el-button></div></div>
         </article>
 
         <article class="panel result-panel">
-          <div class="panel-header"><div><h2 class="panel-title">{{ resultTitle }}</h2><p class="panel-subtitle">{{ updatedAt }}</p></div><el-tag type="warning" effect="plain">待医生确认</el-tag></div>
+          <div class="panel-header"><div><h2 class="panel-title">{{ resultTitle }}</h2><p class="panel-subtitle">{{ updatedAt }}</p></div><el-tag type="warning" effect="plain">Awaiting Physician Confirmation</el-tag></div>
           <div class="panel-body result-body">
             <ol class="generated-list"><li v-for="item in generatedContent" :key="item">{{ item }}</li></ol>
-            <div class="review-note"><ShieldAlert :size="17" /><div><strong>复核提示</strong><span>当前结果仅依据输入内容和演示参考资料生成，医生需结合面诊、检查结果和完整病史判断。</span></div></div>
-            <div class="result-actions"><el-button :icon="FilePlus2" type="primary" :disabled="!canOperate" @click="createDraft">写入病历草稿</el-button></div>
+            <div class="review-note"><ShieldAlert :size="17" /><div><strong>Review Required</strong><span>This result is based only on the input and demo references. A physician must assess it with the examination, test results, and complete history.</span></div></div>
+            <div class="result-actions"><el-button :icon="FilePlus2" type="primary" :disabled="!canOperate" @click="createDraft">Add to Record Draft</el-button></div>
           </div>
         </article>
 
         <article class="panel source-panel">
-          <div class="panel-header"><div><h2 class="panel-title">参考来源</h2><p class="panel-subtitle">展示本次整理所使用的资料类型和相关片段</p></div></div>
+          <div class="panel-header"><div><h2 class="panel-title">References</h2><p class="panel-subtitle">Sources and relevant excerpts used for this result</p></div></div>
           <div class="source-list">
             <div v-for="reference in clinicalStore.ragReferences" :key="reference.id">
               <el-tag size="small" effect="plain">{{ reference.kind }}</el-tag>

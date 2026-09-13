@@ -23,10 +23,10 @@ const activeSessions = computed(() => clinicalStore.consultations.filter((item) 
 const historySessions = computed(() => clinicalStore.consultations.filter((item) => item.status === 'completed'))
 const canOperate = computed(() => authStore.currentRole !== 'admin')
 const aiSummary = computed(() => [
-  `主诉：${selectedSession.value.complaint}。`,
-  `重点信息：${selectedPatient.value.history}`,
-  `风险提示：${selectedPatient.value.allergies.join('、')}过敏史，当前风险评分 ${selectedPatient.value.metrics.riskScore || '待评估'}。`,
-  `随访建议：${selectedPatient.value.plan}`,
+  `Chief complaint: ${selectedSession.value.complaint}.`,
+  `Key information: ${selectedPatient.value.history}`,
+  `Risk alert: ${selectedPatient.value.allergies.join(', ')}; current risk score: ${selectedPatient.value.metrics.riskScore || 'Not assessed'}.`,
+  `Follow-up advice: ${selectedPatient.value.plan}`,
 ])
 
 function selectSession(id: string) {
@@ -37,7 +37,7 @@ function selectSession(id: string) {
 function startSession() {
   if (!canOperate.value) return
   clinicalStore.startConsultation(selectedSession.value.id, actor.value)
-  ElMessage.success('已接诊，问诊记录开始自动保存')
+  ElMessage.success('Consultation accepted. The record is now saving automatically.')
 }
 
 function sendMessage() {
@@ -45,110 +45,110 @@ function sendMessage() {
   if (!content || !canOperate.value || selectedSession.value.status === 'completed') return
   if (selectedSession.value.status === 'waiting') clinicalStore.startConsultation(selectedSession.value.id, actor.value)
   clinicalStore.addMessage(content)
-  clinicalStore.recordAudit(actor.value, '发送图文问诊回复', selectedSession.value.id)
+  clinicalStore.recordAudit(actor.value, 'Sent online consultation reply', selectedSession.value.id)
   draftMessage.value = ''
 }
 
 function uploadAttachment() {
   if (!canOperate.value || selectedSession.value.status === 'completed') return
-  clinicalStore.addMessage('已上传患者检查资料，请结合问诊记录查看。', 'doctor', '门诊检查资料.pdf')
-  clinicalStore.recordAudit(actor.value, '上传问诊资料', selectedSession.value.id)
-  ElMessage.success('演示资料已加入当前会话')
+  clinicalStore.addMessage('Patient examination documents have been uploaded. Review them with the consultation record.', 'doctor', 'Outpatient-Examination-Documents.pdf')
+  clinicalStore.recordAudit(actor.value, 'Uploaded consultation documents', selectedSession.value.id)
+  ElMessage.success('Demo document added to the current session.')
 }
 
 function refreshSummary() {
   summaryUpdated.value = true
-  clinicalStore.recordAudit(actor.value, '生成问诊摘要', selectedSession.value.id, '待复核')
-  ElMessage.success('问诊摘要已根据当前对话更新')
+  clinicalStore.recordAudit(actor.value, 'Generated consultation summary', selectedSession.value.id, 'Pending Review')
+  ElMessage.success('Consultation summary updated from the current conversation.')
 }
 
 function finishSession() {
   if (!canOperate.value) return
   clinicalStore.completeConsultation(selectedSession.value.id, actor.value)
-  ElMessage.success('问诊已结束，记录已保存')
+  ElMessage.success('Consultation completed and record saved.')
 }
 
 function generateRecord() {
   if (!canOperate.value) return
   const record = clinicalStore.createAiRecord(actor.value, selectedPatient.value.id)
-  ElMessage.success('病历草稿已生成，请核对后提交')
+  ElMessage.success('Medical record draft generated. Review it before submission.')
   router.push({ path: '/records', query: { record: record.id } })
 }
 
 function exportSession() {
   const content = selectedSession.value.messages
-    .map((message) => `${message.time} ${message.sender === 'doctor' ? '医生' : message.sender === 'patient' ? '患者' : '智能辅助'}：${message.content}${message.attachment ? `\n附件：${message.attachment}` : ''}`)
+    .map((message) => `${message.time} ${message.sender === 'doctor' ? 'Physician' : message.sender === 'patient' ? 'Patient' : 'AI Assistant'}: ${message.content}${message.attachment ? `\nAttachment: ${message.attachment}` : ''}`)
     .join('\n\n')
-  downloadText(`${selectedSession.value.patientName}-${selectedSession.value.id}-问诊记录.txt`, content)
-  ElMessage.success('问诊记录已导出')
+  downloadText(`${selectedSession.value.patientName}-${selectedSession.value.id}-Consultation-Record.txt`, content)
+  ElMessage.success('Consultation record exported.')
 }
 </script>
 
 <template>
   <div class="view-stack">
-    <PageHeader title="图文问诊" description="处理患者在线咨询，问诊消息与上传资料自动保存在当前会话">
-      <el-button :icon="History" @click="historyVisible = true">历史记录</el-button>
-      <el-button :icon="Download" @click="exportSession">导出当前记录</el-button>
+    <PageHeader title="Online Consultation" description="Handle online patient consultations; messages and uploaded documents are saved automatically">
+      <el-button :icon="History" @click="historyVisible = true">History</el-button>
+      <el-button :icon="Download" @click="exportSession">Export Current Record</el-button>
     </PageHeader>
 
     <section class="consultation-layout">
       <article class="panel session-panel">
-        <div class="panel-header"><div><h2 class="panel-title">接诊队列</h2><p class="panel-subtitle">{{ activeSessions.length }} 个待处理会话</p></div></div>
+        <div class="panel-header"><div><h2 class="panel-title">Consultation Queue</h2><p class="panel-subtitle">{{ activeSessions.length }} sessions to process</p></div></div>
         <div class="session-list">
           <button v-for="session in activeSessions" :key="session.id" type="button" :class="{ active: session.id === selectedSession.id }" @click="selectSession(session.id)">
             <span class="session-avatar">{{ session.patientName.slice(-1) }}</span>
             <div><strong>{{ session.patientName }}</strong><p>{{ session.complaint }}</p><small>{{ session.updatedAt }}</small></div>
             <i v-if="session.unread">{{ session.unread }}</i>
-            <em>{{ session.status === 'active' ? '问诊中' : '待接诊' }}</em>
+            <em>{{ session.status === 'active' ? 'In Progress' : 'Waiting' }}</em>
           </button>
         </div>
       </article>
 
       <article class="panel chat-panel">
         <div class="panel-header chat-header">
-          <div><h2 class="panel-title">{{ selectedSession.patientName }} · {{ selectedSession.complaint }}</h2><p class="panel-subtitle">会话编号 {{ selectedSession.id }}</p></div>
+          <div><h2 class="panel-title">{{ selectedSession.patientName }} · {{ selectedSession.complaint }}</h2><p class="panel-subtitle">Session ID {{ selectedSession.id }}</p></div>
           <div class="session-actions">
-            <el-button v-if="selectedSession.status === 'waiting'" :icon="Play" size="small" type="primary" :disabled="!canOperate" @click="startSession">接诊</el-button>
-            <el-button v-else-if="selectedSession.status === 'active'" size="small" :disabled="!canOperate" @click="finishSession">结束问诊</el-button>
-            <el-tag v-else type="info" effect="plain">已结束</el-tag>
+            <el-button v-if="selectedSession.status === 'waiting'" :icon="Play" size="small" type="primary" :disabled="!canOperate" @click="startSession">Accept</el-button>
+            <el-button v-else-if="selectedSession.status === 'active'" size="small" :disabled="!canOperate" @click="finishSession">End Consultation</el-button>
+            <el-tag v-else type="info" effect="plain">Completed</el-tag>
           </div>
         </div>
 
         <div class="chat-body">
           <div v-for="message in selectedSession.messages" :key="message.id" class="message-row" :class="`sender-${message.sender}`">
             <div class="message-bubble">
-              <span class="message-time">{{ message.time }} · {{ message.sender === 'doctor' ? '医生' : message.sender === 'patient' ? '患者' : '智能辅助' }}</span>
+              <span class="message-time">{{ message.time }} · {{ message.sender === 'doctor' ? 'Physician' : message.sender === 'patient' ? 'Patient' : 'AI Assistant' }}</span>
               <p>{{ message.content }}</p>
-              <button v-if="message.attachment" class="attachment" type="button" @click="ElMessage.info('演示资料：' + message.attachment)"><ImagePlus :size="15" />{{ message.attachment }}</button>
+              <button v-if="message.attachment" class="attachment" type="button" @click="ElMessage.info('Demo document: ' + message.attachment)"><ImagePlus :size="15" />{{ message.attachment }}</button>
             </div>
           </div>
         </div>
 
         <div class="composer">
-          <el-input v-model="draftMessage" type="textarea" :rows="3" resize="none" :disabled="!canOperate || selectedSession.status === 'completed'" placeholder="输入问诊回复或随访建议" @keydown.ctrl.enter="sendMessage" />
-          <div class="composer-actions"><span>Ctrl + Enter 发送</span><div><el-button :icon="ImagePlus" :disabled="!canOperate || selectedSession.status === 'completed'" @click="uploadAttachment">添加资料</el-button><el-button :icon="SendHorizontal" type="primary" :disabled="!draftMessage.trim() || !canOperate || selectedSession.status === 'completed'" @click="sendMessage">发送</el-button></div></div>
+          <el-input v-model="draftMessage" type="textarea" :rows="3" resize="none" :disabled="!canOperate || selectedSession.status === 'completed'" placeholder="Enter a consultation reply or follow-up advice" @keydown.ctrl.enter="sendMessage" />
+          <div class="composer-actions"><span>Ctrl + Enter to send</span><div><el-button :icon="ImagePlus" :disabled="!canOperate || selectedSession.status === 'completed'" @click="uploadAttachment">Add Document</el-button><el-button :icon="SendHorizontal" type="primary" :disabled="!draftMessage.trim() || !canOperate || selectedSession.status === 'completed'" @click="sendMessage">Send</el-button></div></div>
         </div>
       </article>
 
       <aside class="context-column">
-        <article class="panel patient-context"><div class="panel-header"><div><h2 class="panel-title">患者摘要</h2></div></div><div class="panel-body"><PatientSummary :patient="selectedPatient" /></div></article>
+        <article class="panel patient-context"><div class="panel-header"><div><h2 class="panel-title">Patient Summary</h2></div></div><div class="panel-body"><PatientSummary :patient="selectedPatient" /></div></article>
         <article class="panel assist-panel">
-          <div class="panel-header"><div><h2 class="panel-title">问诊摘要</h2><p class="panel-subtitle">生成内容须由医生核对</p></div><Sparkles :size="18" /></div>
+          <div class="panel-header"><div><h2 class="panel-title">Consultation Summary</h2><p class="panel-subtitle">Generated content requires physician review</p></div><Sparkles :size="18" /></div>
           <div class="panel-body">
             <ul class="summary-list"><li v-for="item in aiSummary" :key="item">{{ item }}</li></ul>
-            <p v-if="summaryUpdated" class="updated-line">已根据最新对话更新</p>
-            <div class="assist-actions"><el-button size="small" @click="refreshSummary">刷新摘要</el-button><el-button :icon="FilePlus2" size="small" type="primary" :disabled="!canOperate" @click="generateRecord">生成病历草稿</el-button></div>
+            <p v-if="summaryUpdated" class="updated-line">Updated from the latest conversation</p>
+            <div class="assist-actions"><el-button size="small" @click="refreshSummary">Refresh Summary</el-button><el-button :icon="FilePlus2" size="small" type="primary" :disabled="!canOperate" @click="generateRecord">Generate Record Draft</el-button></div>
           </div>
         </article>
       </aside>
     </section>
 
-    <el-drawer v-model="historyVisible" title="历史问诊记录" size="420px">
+    <el-drawer v-model="historyVisible" title="Consultation History" size="420px">
       <div class="history-list">
         <button v-for="session in historySessions" :key="session.id" type="button" @click="selectSession(session.id); historyVisible = false">
-          <strong>{{ session.patientName }}</strong><span>{{ session.complaint }}</span><small>{{ session.updatedAt }} · {{ session.messages.length }} 条消息</small>
+          <strong>{{ session.patientName }}</strong><span>{{ session.complaint }}</span><small>{{ session.updatedAt }} · {{ session.messages.length }} messages</small>
         </button>
-        <p v-if="!historySessions.length" class="empty-text">暂无历史问诊记录</p>
+        <p v-if="!historySessions.length" class="empty-text">No consultation history</p>
       </div>
     </el-drawer>
   </div>

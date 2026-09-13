@@ -1,22 +1,22 @@
-# 智慧医养医生服务系统前端
+# Smart Healthcare Doctor Service System
 
-基于 Vue 3 + TypeScript + Element Plus 的医生工作平台前端原型，采用接近医院工作站的紧凑布局，围绕医生日常任务实现可交互业务闭环。
+A Vue 3, TypeScript, and Element Plus doctor workspace prototype with a compact clinical workstation layout and end-to-end interactive workflows.
 
-## 功能范围
+## Feature Scope
 
-- 多方式登录与角色演示：密码加验证码、短信验证、人脸核验演示
-- 医生工作台：今日待办、接诊队列、重点患者和会诊任务
-- 患者管理：多条件搜索、档案编辑、批量分组和健康数据趋势
-- 图文问诊：会话队列、资料上传、历史导出、摘要和病历草稿
-- 电子病历：结构化病历、可变更医嘱、分级审核与归档
-- 远程会诊：申请、接收、添加专家、会诊意见和报告生成
-- 健康管理：健康计划、提醒任务、监测趋势和定期评估
-- 智能辅助：病历草稿、问诊摘要、相似记录和医嘱风险核验
-- 分角色操作记录：医生本人、本科室或全平台范围
+- Multi-method sign-in and role demos: password with verification code, SMS verification, and facial verification
+- Doctor dashboard: daily tasks, consultation queue, priority patients, and referral tasks
+- Patient management: multi-field search, profile editing, bulk grouping, and health trends
+- Online consultation: session queue, uploads, history export, summaries, and record drafts
+- Electronic medical records: structured records, editable orders, tiered review, and archiving
+- Remote consultation: requests, acceptance, specialist assignment, opinions, and report generation
+- Health management: care plans, reminders, monitoring trends, and periodic assessments
+- AI assistant: record drafts, consultation summaries, similar records, and order risk checks
+- Role-scoped audit logs: personal, department, or platform-wide visibility
 
-所有业务数据和外部服务均为本地演示，不调用真实患者系统、短信、人脸识别或医疗 AI 服务。
+All business data and external services are local demonstrations. The app does not connect to real patient systems, SMS providers, facial recognition, or medical AI services.
 
-## 技术栈
+## Technology Stack
 
 - Vue 3
 - TypeScript
@@ -27,20 +27,20 @@
 - ECharts
 - @lucide/vue
 
-## 本地运行
+## Local Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-默认访问：
+Default URL:
 
 ```text
 http://127.0.0.1:5173/
 ```
 
-## 构建
+## Build
 
 ```bash
 npm run build

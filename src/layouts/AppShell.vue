@@ -33,23 +33,23 @@ const searchFocused = shallowRef(false)
 const navGroups = [
   {
     label: '',
-    items: [{ path: '/', label: '工作台', icon: LayoutDashboard }],
+    items: [{ path: '/', label: 'Dashboard', icon: LayoutDashboard }],
   },
   {
-    label: '诊疗业务',
+    label: 'Clinical Services',
     items: [
-      { path: '/patients', label: '患者管理', icon: Users },
-      { path: '/consultation', label: '图文问诊', icon: MessageSquareText },
-      { path: '/records', label: '电子病历', icon: FileText },
-      { path: '/remote-consultations', label: '远程会诊', icon: Video },
-      { path: '/health-management', label: '健康管理', icon: HeartPulse },
+      { path: '/patients', label: 'Patient Management', icon: Users },
+      { path: '/consultation', label: 'Online Consultation', icon: MessageSquareText },
+      { path: '/records', label: 'Medical Records', icon: FileText },
+      { path: '/remote-consultations', label: 'Remote Consultation', icon: Video },
+      { path: '/health-management', label: 'Health Management', icon: HeartPulse },
     ],
   },
   {
-    label: '辅助工具',
+    label: 'Clinical Tools',
     items: [
-      { path: '/ai-assistant', label: '智能辅助', icon: Sparkles },
-      { path: '/audit', label: '操作记录', icon: ClipboardList },
+      { path: '/ai-assistant', label: 'AI Assistant', icon: Sparkles },
+      { path: '/audit', label: 'Audit Log', icon: ClipboardList },
     ],
   },
 ]
@@ -62,7 +62,7 @@ const searchResults = computed(() => {
     .slice(0, 4)
     .map((patient) => ({
       key: patient.id,
-      type: '患者',
+      type: 'Patient',
       label: `${patient.name} · ${patient.id}`,
       detail: patient.diagnosis,
       path: { path: '/patients', query: { patient: patient.id } },
@@ -72,7 +72,7 @@ const searchResults = computed(() => {
     .slice(0, 4)
     .map((record) => ({
       key: record.id,
-      type: '病历',
+      type: 'Medical Record',
       label: `${record.patientName} · ${record.id}`,
       detail: record.chiefComplaint,
       path: { path: '/records', query: { record: record.id } },
@@ -80,7 +80,7 @@ const searchResults = computed(() => {
   return [...patientResults, ...recordResults]
 })
 
-const todayLabel = computed(() => new Intl.DateTimeFormat('zh-CN', {
+const todayLabel = computed(() => new Intl.DateTimeFormat('en-US', {
   month: 'long',
   day: 'numeric',
   weekday: 'short',
@@ -107,7 +107,7 @@ function closeSearchResults() {
 }
 
 function showNotifications() {
-  ElMessage.info('当前有 2 条问诊消息和 1 个会诊待办')
+  ElMessage.info('You have 2 consultation messages and 1 remote consultation task.')
 }
 
 function logout() {
@@ -118,19 +118,19 @@ function logout() {
 
 <template>
   <div class="app-shell">
-    <button v-if="mobileOpen" class="sidebar-overlay" type="button" aria-label="关闭导航" @click="closeNavigation" />
+    <button v-if="mobileOpen" class="sidebar-overlay" type="button" aria-label="Close navigation" @click="closeNavigation" />
 
     <aside class="sidebar" :class="{ open: mobileOpen }">
       <div class="brand">
         <div class="brand-mark"><Activity :size="21" /></div>
         <div class="brand-copy">
-          <strong>智慧医养</strong>
-          <span>医生服务系统</span>
+          <strong>Smart Healthcare</strong>
+          <span>Doctor Service System</span>
         </div>
-        <button class="mobile-close" type="button" aria-label="关闭导航" @click="closeNavigation"><X :size="20" /></button>
+        <button class="mobile-close" type="button" aria-label="Close navigation" @click="closeNavigation"><X :size="20" /></button>
       </div>
 
-      <nav class="nav-list" aria-label="主导航">
+      <nav class="nav-list" aria-label="Main navigation">
         <section v-for="group in navGroups" :key="group.label || 'main'" class="nav-group">
           <p v-if="group.label" class="nav-group-label">{{ group.label }}</p>
           <RouterLink
@@ -150,29 +150,29 @@ function logout() {
 
       <div class="sidebar-foot">
         <ShieldCheck :size="16" />
-        <div><strong>安全访问已启用</strong><span>按角色控制数据范围</span></div>
+        <div><strong>Secure access enabled</strong><span>Role-based data scope</span></div>
       </div>
     </aside>
 
     <main class="main-area">
       <header class="topbar">
-        <button class="menu-button" type="button" aria-label="打开导航" @click="mobileOpen = true"><Menu :size="21" /></button>
+        <button class="menu-button" type="button" aria-label="Open navigation" @click="mobileOpen = true"><Menu :size="21" /></button>
 
         <div class="global-search" @focusin="searchFocused = true" @focusout="closeSearchResults">
           <Search :size="17" />
-          <input v-model="searchQuery" type="search" placeholder="搜索患者姓名、编号或病历" aria-label="全局搜索" />
+          <input v-model="searchQuery" type="search" placeholder="Search patients, IDs, or records" aria-label="Global search" />
           <div v-if="searchFocused && searchQuery" class="search-results">
             <button v-for="result in searchResults" :key="result.key" type="button" @mousedown.prevent="openSearchResult(result)">
               <span>{{ result.type }}</span>
               <div><strong>{{ result.label }}</strong><small>{{ result.detail }}</small></div>
             </button>
-            <p v-if="!searchResults.length">未找到匹配的患者或病历</p>
+            <p v-if="!searchResults.length">No matching patients or records found</p>
           </div>
         </div>
 
         <div class="top-actions">
           <span class="today">{{ todayLabel }}</span>
-          <button class="icon-button" type="button" aria-label="查看通知" @click="showNotifications"><Bell :size="18" /><i /></button>
+          <button class="icon-button" type="button" aria-label="View notifications" @click="showNotifications"><Bell :size="18" /><i /></button>
           <div class="user-chip">
             <span class="avatar">{{ authStore.profile.name.slice(0, 1) }}</span>
             <div class="user-copy">
@@ -180,7 +180,7 @@ function logout() {
               <span>{{ authStore.profile.title }} · {{ authStore.profile.department }}</span>
             </div>
           </div>
-          <el-button :icon="LogOut" text @click="logout">退出</el-button>
+          <el-button :icon="LogOut" text @click="logout">Sign out</el-button>
         </div>
       </header>
 

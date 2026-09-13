@@ -22,9 +22,9 @@ const activeTab = shallowRef('overview')
 const newDialogVisible = shallowRef(false)
 const editDialogVisible = shallowRef(false)
 const groupDialogVisible = shallowRef(false)
-const groupName = shallowRef('慢病重点随访')
+const groupName = shallowRef('Priority Chronic Care')
 
-const newForm = reactive({ name: '', gender: '男' as Patient['gender'], age: 65, diagnosis: '', group: '常规随访' })
+const newForm = reactive({ name: '', gender: 'Male' as Patient['gender'], age: 65, diagnosis: '', group: 'Routine Follow-up' })
 const editForm = reactive({ diagnosis: '', history: '', allergies: '', plan: '' })
 
 const actor = computed(() => ({ name: authStore.profile.name, role: authStore.roleLabel, department: authStore.profile.department }))
@@ -54,14 +54,14 @@ function handleSelectionChange(rows: Patient[]) {
 function submitNewPatient() {
   if (!canEdit.value) return
   if (!newForm.name.trim() || !newForm.diagnosis.trim()) {
-    ElMessage.warning('请填写患者姓名和主要诊断')
+    ElMessage.warning('Enter the patient name and primary diagnosis.')
     return
   }
   const patient = clinicalStore.addPatient({ ...newForm, name: newForm.name.trim(), diagnosis: newForm.diagnosis.trim() }, actor.value)
   selectedPatientId.value = patient.id
   newDialogVisible.value = false
-  Object.assign(newForm, { name: '', gender: '男', age: 65, diagnosis: '', group: '常规随访' })
-  ElMessage.success('患者档案已建立')
+  Object.assign(newForm, { name: '', gender: 'Male', age: 65, diagnosis: '', group: 'Routine Follow-up' })
+  ElMessage.success('Patient profile created.')
 }
 
 function openEditDialog() {
@@ -69,7 +69,7 @@ function openEditDialog() {
   Object.assign(editForm, {
     diagnosis: selectedPatient.value.diagnosis,
     history: selectedPatient.value.history,
-    allergies: selectedPatient.value.allergies.join('、'),
+    allergies: selectedPatient.value.allergies.join(', '),
     plan: selectedPatient.value.plan,
   })
   editDialogVisible.value = true
@@ -80,17 +80,17 @@ function submitEdit() {
   clinicalStore.updatePatient(selectedPatient.value.id, {
     diagnosis: editForm.diagnosis,
     history: editForm.history,
-    allergies: editForm.allergies.split(/[、,，]/).map((item) => item.trim()).filter(Boolean),
+    allergies: editForm.allergies.split(',').map((item) => item.trim()).filter(Boolean),
     plan: editForm.plan,
   }, actor.value)
   editDialogVisible.value = false
-  ElMessage.success('患者档案已更新')
+  ElMessage.success('Patient profile updated.')
 }
 
 function openGroupDialog() {
   if (!canEdit.value) return
   if (!selectedRows.value.length) {
-    ElMessage.warning('请先勾选需要调整分组的患者')
+    ElMessage.warning('Select patients before changing their group.')
     return
   }
   groupDialogVisible.value = true
@@ -101,89 +101,89 @@ function submitGroup() {
   if (!groupName.value.trim()) return
   clinicalStore.batchGroup(selectedRows.value.map((item) => item.id), groupName.value.trim(), actor.value)
   groupDialogVisible.value = false
-  ElMessage.success(`已调整 ${selectedRows.value.length} 名患者的分组`)
+  ElMessage.success(`Updated the care group for ${selectedRows.value.length} patients.`)
 }
 </script>
 
 <template>
   <div class="view-stack">
-    <PageHeader title="患者管理" description="按姓名、编号、症状、疾病或管理状态查找患者，维护完整健康档案">
-      <el-button :icon="Plus" type="primary" :disabled="!canEdit" @click="newDialogVisible = true">新建患者</el-button>
-      <el-button :icon="FolderInput" :disabled="!canEdit" @click="openGroupDialog">批量分组</el-button>
+    <PageHeader title="Patient Management" description="Find patients by name, ID, symptom, diagnosis, or care status and maintain complete health profiles">
+      <el-button :icon="Plus" type="primary" :disabled="!canEdit" @click="newDialogVisible = true">New Patient</el-button>
+      <el-button :icon="FolderInput" :disabled="!canEdit" @click="openGroupDialog">Bulk Group</el-button>
     </PageHeader>
 
-    <p v-if="!canEdit" class="permission-note">当前以管理员身份查看。管理员可核查患者资料和访问记录，但不能修改诊疗档案。</p>
+    <p v-if="!canEdit" class="permission-note">You are viewing as an administrator. Administrators can inspect patient information and access logs but cannot edit clinical records.</p>
 
     <section class="patients-layout">
       <article class="panel patient-table-panel">
         <div class="panel-header">
-          <div><h2 class="panel-title">患者列表</h2><p class="panel-subtitle">共 {{ filteredPatients.length }} 名患者，点击行查看档案</p></div>
+          <div><h2 class="panel-title">Patient List</h2><p class="panel-subtitle">{{ filteredPatients.length }} patients · Select a row to view the profile</p></div>
         </div>
         <div class="panel-body table-body">
           <div class="filter-bar">
-            <el-input v-model="filters.keyword" clearable placeholder="姓名、编号、症状或疾病"><template #prefix><Search :size="16" /></template></el-input>
-            <el-select v-model="filters.group" clearable placeholder="患者分组"><el-option v-for="group in groupOptions" :key="group" :label="group" :value="group" /></el-select>
-            <el-select v-model="filters.status" clearable placeholder="风险状态"><el-option label="平稳" value="stable" /><el-option label="需关注" value="warning" /><el-option label="高风险" value="critical" /></el-select>
+            <el-input v-model="filters.keyword" clearable placeholder="Name, ID, symptom, or diagnosis"><template #prefix><Search :size="16" /></template></el-input>
+            <el-select v-model="filters.group" clearable placeholder="Patient Group"><el-option v-for="group in groupOptions" :key="group" :label="group" :value="group" /></el-select>
+            <el-select v-model="filters.status" clearable placeholder="Risk Status"><el-option label="Stable" value="stable" /><el-option label="Needs Attention" value="warning" /><el-option label="High Risk" value="critical" /></el-select>
           </div>
           <el-table :data="filteredPatients" height="560" highlight-current-row @row-click="handleRowClick" @selection-change="handleSelectionChange">
             <el-table-column type="selection" width="42" />
-            <el-table-column prop="name" label="姓名" min-width="95" />
-            <el-table-column prop="age" label="年龄" width="66" />
-            <el-table-column prop="diagnosis" label="主要诊断" min-width="170" show-overflow-tooltip />
-            <el-table-column prop="group" label="管理分组" min-width="125" show-overflow-tooltip />
-            <el-table-column label="状态" width="88"><template #default="{ row }"><StatusBadge :status="row.status" type="patient" /></template></el-table-column>
-            <el-table-column prop="lastVisit" label="最近问诊" width="112" />
+            <el-table-column prop="name" label="Name" min-width="95" />
+            <el-table-column prop="age" label="Age" width="66" />
+            <el-table-column prop="diagnosis" label="Primary Diagnosis" min-width="170" show-overflow-tooltip />
+            <el-table-column prop="group" label="Care Group" min-width="125" show-overflow-tooltip />
+            <el-table-column label="Status" width="88"><template #default="{ row }"><StatusBadge :status="row.status" type="patient" /></template></el-table-column>
+            <el-table-column prop="lastVisit" label="Last Consultation" width="112" />
           </el-table>
         </div>
       </article>
 
       <article class="panel detail-panel">
         <div class="panel-header">
-          <div><h2 class="panel-title">患者档案</h2><p class="panel-subtitle">{{ selectedPatient.id }} · 责任医生 {{ selectedPatient.ownerDoctor }}</p></div>
-          <el-button :icon="Edit3" size="small" :disabled="!canEdit" @click="openEditDialog">编辑档案</el-button>
+          <div><h2 class="panel-title">Patient Profile</h2><p class="panel-subtitle">{{ selectedPatient.id }} · Primary Physician {{ selectedPatient.ownerDoctor }}</p></div>
+          <el-button :icon="Edit3" size="small" :disabled="!canEdit" @click="openEditDialog">Edit Profile</el-button>
         </div>
         <div class="detail-tabs">
           <el-tabs v-model="activeTab">
-            <el-tab-pane label="概览" name="overview"><PatientSummary :patient="selectedPatient" /></el-tab-pane>
-            <el-tab-pane label="病史" name="history">
+            <el-tab-pane label="Overview" name="overview"><PatientSummary :patient="selectedPatient" /></el-tab-pane>
+            <el-tab-pane label="Medical History" name="history">
               <dl class="record-detail">
-                <div><dt>主要诊断</dt><dd>{{ selectedPatient.diagnosis }}</dd></div>
-                <div><dt>既往病史</dt><dd>{{ selectedPatient.history }}</dd></div>
-                <div><dt>药物过敏</dt><dd>{{ selectedPatient.allergies.join('、') }}</dd></div>
+                <div><dt>Primary Diagnosis</dt><dd>{{ selectedPatient.diagnosis }}</dd></div>
+                <div><dt>Medical History</dt><dd>{{ selectedPatient.history }}</dd></div>
+                <div><dt>Drug Allergies</dt><dd>{{ selectedPatient.allergies.join(', ') }}</dd></div>
               </dl>
             </el-tab-pane>
-            <el-tab-pane label="健康数据" name="health"><VitalTrendChart :patient="selectedPatient" /></el-tab-pane>
-            <el-tab-pane label="管理计划" name="plan">
-              <dl class="record-detail"><div><dt>当前计划</dt><dd>{{ selectedPatient.plan }}</dd></div><div><dt>最近问诊</dt><dd>{{ selectedPatient.lastVisit }}</dd></div></dl>
+            <el-tab-pane label="Health Data" name="health"><VitalTrendChart :patient="selectedPatient" /></el-tab-pane>
+            <el-tab-pane label="Care Plan" name="plan">
+              <dl class="record-detail"><div><dt>Current Plan</dt><dd>{{ selectedPatient.plan }}</dd></div><div><dt>Last Consultation</dt><dd>{{ selectedPatient.lastVisit }}</dd></div></dl>
             </el-tab-pane>
           </el-tabs>
         </div>
       </article>
     </section>
 
-    <el-dialog v-model="newDialogVisible" title="新建患者档案" width="520px">
+    <el-dialog v-model="newDialogVisible" title="Create Patient Profile" width="520px">
       <el-form label-position="top">
-        <div class="form-grid"><el-form-item label="姓名"><el-input v-model="newForm.name" /></el-form-item><el-form-item label="性别"><el-select v-model="newForm.gender"><el-option label="男" value="男" /><el-option label="女" value="女" /></el-select></el-form-item></div>
-        <div class="form-grid"><el-form-item label="年龄"><el-input-number v-model="newForm.age" :min="1" :max="120" /></el-form-item><el-form-item label="管理分组"><el-input v-model="newForm.group" /></el-form-item></div>
-        <el-form-item label="主要诊断"><el-input v-model="newForm.diagnosis" /></el-form-item>
+        <div class="form-grid"><el-form-item label="Name"><el-input v-model="newForm.name" /></el-form-item><el-form-item label="Gender"><el-select v-model="newForm.gender"><el-option label="Male" value="Male" /><el-option label="Female" value="Female" /></el-select></el-form-item></div>
+        <div class="form-grid"><el-form-item label="Age"><el-input-number v-model="newForm.age" :min="1" :max="120" /></el-form-item><el-form-item label="Care Group"><el-input v-model="newForm.group" /></el-form-item></div>
+        <el-form-item label="Primary Diagnosis"><el-input v-model="newForm.diagnosis" /></el-form-item>
       </el-form>
-      <template #footer><el-button @click="newDialogVisible = false">取消</el-button><el-button type="primary" @click="submitNewPatient">建立档案</el-button></template>
+      <template #footer><el-button @click="newDialogVisible = false">Cancel</el-button><el-button type="primary" @click="submitNewPatient">Create Profile</el-button></template>
     </el-dialog>
 
-    <el-dialog v-model="editDialogVisible" title="编辑患者档案" width="620px">
+    <el-dialog v-model="editDialogVisible" title="Edit Patient Profile" width="620px">
       <el-form label-position="top">
-        <el-form-item label="主要诊断"><el-input v-model="editForm.diagnosis" /></el-form-item>
-        <el-form-item label="既往病史"><el-input v-model="editForm.history" type="textarea" :rows="4" /></el-form-item>
-        <el-form-item label="过敏史"><el-input v-model="editForm.allergies" placeholder="多项内容使用顿号分隔" /></el-form-item>
-        <el-form-item label="管理计划"><el-input v-model="editForm.plan" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="Primary Diagnosis"><el-input v-model="editForm.diagnosis" /></el-form-item>
+        <el-form-item label="Medical History"><el-input v-model="editForm.history" type="textarea" :rows="4" /></el-form-item>
+        <el-form-item label="Allergies"><el-input v-model="editForm.allergies" placeholder="Separate multiple items with commas" /></el-form-item>
+        <el-form-item label="Care Plan"><el-input v-model="editForm.plan" type="textarea" :rows="3" /></el-form-item>
       </el-form>
-      <template #footer><el-button @click="editDialogVisible = false">取消</el-button><el-button type="primary" @click="submitEdit">保存修改</el-button></template>
+      <template #footer><el-button @click="editDialogVisible = false">Cancel</el-button><el-button type="primary" @click="submitEdit">Save Changes</el-button></template>
     </el-dialog>
 
-    <el-dialog v-model="groupDialogVisible" title="批量调整分组" width="440px">
-      <p class="dialog-note">已选择 {{ selectedRows.length }} 名患者</p>
-      <el-input v-model="groupName" placeholder="输入管理分组名称" />
-      <template #footer><el-button @click="groupDialogVisible = false">取消</el-button><el-button type="primary" @click="submitGroup">确认调整</el-button></template>
+    <el-dialog v-model="groupDialogVisible" title="Bulk Change Group" width="440px">
+      <p class="dialog-note">Selected {{ selectedRows.length }} patients</p>
+      <el-input v-model="groupName" placeholder="Enter a care group name" />
+      <template #footer><el-button @click="groupDialogVisible = false">Cancel</el-button><el-button type="primary" @click="submitGroup">Apply Changes</el-button></template>
     </el-dialog>
   </div>
 </template>

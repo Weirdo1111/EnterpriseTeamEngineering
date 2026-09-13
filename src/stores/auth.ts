@@ -11,22 +11,22 @@ interface UserProfile {
 
 const roleProfiles: Record<Role, UserProfile> = {
   doctor: {
-    name: '林若医生',
+    name: 'Dr. Riley Lin',
     role: 'doctor',
-    department: '老年医学科',
-    title: '主治医师',
+    department: 'Geriatric Medicine',
+    title: 'Attending Physician',
   },
   seniorDoctor: {
-    name: '周明主任',
+    name: 'Dr. Michael Zhou',
     role: 'seniorDoctor',
-    department: '心内与老年慢病中心',
-    title: '主任医师',
+    department: 'Cardiology & Geriatric Care',
+    title: 'Chief Physician',
   },
   admin: {
-    name: '平台管理员',
+    name: 'Platform Admin',
     role: 'admin',
-    department: '医养平台运营中心',
-    title: '系统管理员',
+    department: 'Platform Operations',
+    title: 'System Administrator',
   },
 }
 
@@ -37,9 +37,9 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => token.value.length > 0)
   const profile = computed(() => roleProfiles[currentRole.value])
   const roleLabel = computed(() => {
-    if (currentRole.value === 'admin') return '管理员'
-    if (currentRole.value === 'seniorDoctor') return '上级医生'
-    return '医生'
+    if (currentRole.value === 'admin') return 'Administrator'
+    if (currentRole.value === 'seniorDoctor') return 'Senior Physician'
+    return 'Physician'
   })
 
   function login(role: Role) {

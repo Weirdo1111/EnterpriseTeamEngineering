@@ -26,15 +26,15 @@ const form = reactive({
 })
 
 const methods = [
-  { value: 'password' as const, label: '密码登录', icon: LockKeyhole },
-  { value: 'sms' as const, label: '短信验证', icon: Smartphone },
-  { value: 'face' as const, label: '人脸识别', icon: ScanFace },
+  { value: 'password' as const, label: 'Password', icon: LockKeyhole },
+  { value: 'sms' as const, label: 'SMS Verification', icon: Smartphone },
+  { value: 'face' as const, label: 'Facial Verification', icon: ScanFace },
 ]
 
 const roleOptions = [
-  { value: 'doctor', label: '普通医生 · 林若医生' },
-  { value: 'seniorDoctor', label: '上级医生 · 周明主任' },
-  { value: 'admin', label: '系统管理员 · 平台管理员' },
+  { value: 'doctor', label: 'Physician · Dr. Riley Lin' },
+  { value: 'seniorDoctor', label: 'Senior Physician · Dr. Michael Zhou' },
+  { value: 'admin', label: 'System Administrator · Platform Admin' },
 ]
 
 const canSubmit = computed(() => {
@@ -51,7 +51,7 @@ function switchMethod(value: LoginMethod) {
 function sendSmsCode() {
   smsSent.value = true
   form.smsCode = '0926'
-  ElMessage.success('演示验证码已填写：0926')
+  ElMessage.success('Demo verification code entered: 0926')
 }
 
 function verifyFace() {
@@ -59,7 +59,7 @@ function verifyFace() {
   window.setTimeout(() => {
     faceChecking.value = false
     faceVerified.value = true
-    ElMessage.success('身份核验通过（本地演示）')
+    ElMessage.success('Identity verified (local demo)')
   }, 650)
 }
 
@@ -69,7 +69,7 @@ function submitLogin() {
   window.setTimeout(() => {
     authStore.login(selectedRole.value)
     loading.value = false
-    ElMessage.success('登录成功')
+    ElMessage.success('Signed in successfully')
     router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
   }, 420)
 }
@@ -80,32 +80,32 @@ function submitLogin() {
     <section class="system-intro">
       <div class="intro-brand">
         <span><Stethoscope :size="25" /></span>
-        <div><strong>智慧医养大数据公共服务平台</strong><small>医生服务系统</small></div>
+        <div><strong>Smart Healthcare Public Service Platform</strong><small>Doctor Service System</small></div>
       </div>
 
       <div class="intro-copy">
-        <p class="intro-kicker">医疗工作入口</p>
-        <h1>连接问诊、病历与持续健康管理</h1>
-        <p>面向医生日常诊疗工作，集中处理患者资料、在线问诊、会诊协作和健康随访。</p>
+        <p class="intro-kicker">Clinical Workspace</p>
+        <h1>Connect Consultations, Records, and Continuous Care</h1>
+        <p>A focused workspace for clinicians to manage patient information, online consultations, specialist collaboration, and ongoing follow-up.</p>
       </div>
 
       <ul class="intro-points">
-        <li><CheckCircle2 :size="17" /><span>患者信息按岗位和数据范围授权</span></li>
-        <li><CheckCircle2 :size="17" /><span>病历提交、审核与归档全程留痕</span></li>
-        <li><CheckCircle2 :size="17" /><span>智能生成内容须经医生确认后使用</span></li>
+        <li><CheckCircle2 :size="17" /><span>Patient information is authorized by role and data scope</span></li>
+        <li><CheckCircle2 :size="17" /><span>Record submission, review, and archiving are fully audited</span></li>
+        <li><CheckCircle2 :size="17" /><span>AI-generated content requires physician confirmation before use</span></li>
       </ul>
 
-      <p class="intro-foot">教学演示环境 · 页面中的患者资料均为模拟数据</p>
+      <p class="intro-foot">Training environment · All patient information shown is simulated</p>
     </section>
 
     <section class="login-area">
       <div class="login-panel">
         <div class="login-heading">
           <div class="login-mark"><ShieldCheck :size="22" /></div>
-          <div><h2>医生工作平台</h2><p>请选择验证方式进入系统</p></div>
+          <div><h2>Doctor Workspace</h2><p>Choose a verification method to enter the system</p></div>
         </div>
 
-        <div class="method-tabs" role="tablist" aria-label="登录方式">
+        <div class="method-tabs" role="tablist" aria-label="Sign-in methods">
           <button
             v-for="item in methods"
             :key="item.value"
@@ -119,40 +119,40 @@ function submitLogin() {
 
         <el-form label-position="top" class="login-form" @submit.prevent="submitLogin">
           <template v-if="method === 'password'">
-            <el-form-item label="账号"><el-input v-model="form.account" size="large" /></el-form-item>
-            <el-form-item label="密码"><el-input v-model="form.password" size="large" type="password" show-password /></el-form-item>
-            <el-form-item label="动态验证码"><el-input v-model="form.captcha" size="large" maxlength="4" /></el-form-item>
+            <el-form-item label="Account"><el-input v-model="form.account" size="large" /></el-form-item>
+            <el-form-item label="Password"><el-input v-model="form.password" size="large" type="password" show-password /></el-form-item>
+            <el-form-item label="Verification Code"><el-input v-model="form.captcha" size="large" maxlength="4" /></el-form-item>
           </template>
 
           <template v-else-if="method === 'sms'">
-            <el-form-item label="手机号码"><el-input v-model="form.mobile" size="large" /></el-form-item>
-            <el-form-item label="短信验证码">
+            <el-form-item label="Mobile Number"><el-input v-model="form.mobile" size="large" /></el-form-item>
+            <el-form-item label="SMS Code">
               <div class="code-row">
-                <el-input v-model="form.smsCode" size="large" maxlength="4" placeholder="请输入 4 位验证码" />
-                <el-button size="large" @click="sendSmsCode">{{ smsSent ? '重新获取' : '获取验证码' }}</el-button>
+                <el-input v-model="form.smsCode" size="large" maxlength="4" placeholder="Enter the 4-digit code" />
+                <el-button size="large" @click="sendSmsCode">{{ smsSent ? 'Resend' : 'Send Code' }}</el-button>
               </div>
             </el-form-item>
           </template>
 
           <template v-else>
-            <el-form-item label="账号"><el-input v-model="form.account" size="large" /></el-form-item>
+            <el-form-item label="Account"><el-input v-model="form.account" size="large" /></el-form-item>
             <button class="face-check" :class="{ verified: faceVerified }" type="button" @click="verifyFace">
               <ScanFace :size="34" />
-              <strong>{{ faceVerified ? '身份核验已通过' : '开始人脸身份核验' }}</strong>
-              <span>{{ faceChecking ? '正在核对演示身份…' : '本功能仅模拟核验结果，不调用摄像头' }}</span>
+              <strong>{{ faceVerified ? 'Identity verified' : 'Start facial identity verification' }}</strong>
+              <span>{{ faceChecking ? 'Verifying demo identity...' : 'This demo simulates verification and does not access the camera' }}</span>
             </button>
           </template>
 
-          <el-form-item label="演示身份" class="role-select">
+          <el-form-item label="Demo Role" class="role-select">
             <el-select v-model="selectedRole" size="large">
               <el-option v-for="role in roleOptions" :key="role.value" :label="role.label" :value="role.value" />
             </el-select>
           </el-form-item>
 
-          <el-button class="login-button" type="primary" size="large" :loading="loading" :disabled="!canSubmit" @click="submitLogin">进入系统</el-button>
+          <el-button class="login-button" type="primary" size="large" :loading="loading" :disabled="!canSubmit" @click="submitLogin">Enter Workspace</el-button>
         </el-form>
 
-        <p class="security-note"><ShieldCheck :size="15" />登录操作将记录在个人操作日志中</p>
+        <p class="security-note"><ShieldCheck :size="15" />Sign-in activity is recorded in your personal audit log</p>
       </div>
     </section>
   </main>
