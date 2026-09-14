@@ -1,3 +1,7 @@
+import { patientsSeed } from '@/mocks/patients'
+import { patientService, patientStorageWarning } from '@/services/patients'
+import { useAuthStore } from '@/stores/auth'
+import type { PatientInput, ClassificationChange } from '@/types/clinical'
 import { computed, reactive, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import type {
@@ -21,70 +25,8 @@ interface AuditActor {
   department: string
 }
 
-type NewPatientInput = Pick<Patient, 'name' | 'gender' | 'age' | 'diagnosis' | 'group'>
 
-const patientsSeed: Patient[] = [
-  {
-    id: 'P-202609-001',
-    name: '张建国',
-    gender: '男',
-    age: 72,
-    diagnosis: '高血压合并糖尿病',
-    group: '慢病重点随访',
-    status: 'warning',
-    allergies: ['青霉素'],
-    history: '高血压病史 12 年，2 型糖尿病 8 年，近期夜间血压波动明显。',
-    plan: '低盐饮食，监测晨起血压，每两周线上随访一次。',
-    lastVisit: '2026-09-10',
-    ownerDoctor: '林若医生',
-    metrics: { bloodPressure: '152/94', glucose: '8.6', heartRate: 86, riskScore: 74 },
-  },
-  {
-    id: 'P-202609-002',
-    name: '陈秀兰',
-    gender: '女',
-    age: 68,
-    diagnosis: '冠心病术后康复',
-    group: '康复随访',
-    status: 'stable',
-    allergies: ['无明确药物过敏'],
-    history: '冠脉支架术后 6 个月，规律服药，近期运动耐量提升。',
-    plan: '保持心脏康复训练，复诊前完成血脂与心电图检查。',
-    lastVisit: '2026-09-09',
-    ownerDoctor: '周明主任',
-    metrics: { bloodPressure: '126/78', glucose: '5.9', heartRate: 72, riskScore: 38 },
-  },
-  {
-    id: 'P-202609-003',
-    name: '王德胜',
-    gender: '男',
-    age: 81,
-    diagnosis: '慢阻肺急性加重风险',
-    group: '呼吸风险预警',
-    status: 'critical',
-    allergies: ['磺胺类'],
-    history: '慢阻肺 15 年，近三天咳嗽加重，活动后气促明显。',
-    plan: '重点监测血氧和呼吸频率，必要时转诊呼吸专科。',
-    lastVisit: '2026-09-11',
-    ownerDoctor: '林若医生',
-    metrics: { bloodPressure: '138/82', glucose: '6.4', heartRate: 96, riskScore: 89 },
-  },
-  {
-    id: 'P-202609-004',
-    name: '刘玉梅',
-    gender: '女',
-    age: 75,
-    diagnosis: '骨质疏松与跌倒风险',
-    group: '居家安全管理',
-    status: 'warning',
-    allergies: ['头孢类'],
-    history: '一年内跌倒两次，腰椎骨密度下降，夜间起身频繁。',
-    plan: '补充钙剂与维生素 D，安排居家环境安全评估。',
-    lastVisit: '2026-09-08',
-    ownerDoctor: '林若医生',
-    metrics: { bloodPressure: '132/80', glucose: '6.8', heartRate: 78, riskScore: 67 },
-  },
-]
+
 
 const consultationSeed: ConsultationSession[] = [
   {
@@ -243,6 +185,12 @@ function displayTime() {
 
 export const useClinicalStore = defineStore('clinical', () => {
   const patients = reactive<Patient[]>(structuredClone(patientsSeed))
+  const patientsLoading = shallowRef(false)
+  const patientsError = shallowRef('')
+  const patientsWarning = shallowRef('')
+  let patientsLoaded = false
+  let loadingPatients: Promise<void> | undefined
+
   const consultations = reactive<ConsultationSession[]>(structuredClone(consultationSeed))
   const records = reactive<MedicalRecord[]>(structuredClone(recordsSeed))
   const auditLogs = reactive<AuditLog[]>(structuredClone(auditSeed))
@@ -281,34 +229,70 @@ export const useClinicalStore = defineStore('clinical', () => {
     if (actor) recordAudit(actor, '查看患者详情', id)
   }
 
-  function addPatient(input: NewPatientInput, actor: AuditActor) {
-    const patient: Patient = {
-      ...input,
-      id: `P-202609-${String(patients.length + 1).padStart(3, '0')}`,
-      status: 'stable',
-      allergies: ['待补充'],
-      history: '新建患者，病史资料待补充。',
-      plan: '待制定健康管理计划。',
-      lastVisit: '尚未问诊',
-      ownerDoctor: actor.name,
-      metrics: { bloodPressure: '--', glucose: '--', heartRate: 0, riskScore: 0 },
-    }
-    patients.unshift(patient)
-    healthPlans.push({ patientId: patient.id, goals: '待设置', measures: '待设置', reviewCycle: '每月评估', updatedAt: displayTime().slice(0, 10) })
+  function syncPatients(incoming: Patient[], replace = false) {
+    patientsWarning.value = patientStorageWarning
+    const next = incoming.map(patient => {
+      const current = patients.find(item => item.id === patient.id)
+      if (!current) return patient
+      // Keep runtime health data untouched when information is saved or reloaded.
+      return { ...patient, status: current.status, group: current.group, plan: current.plan, metrics: current.metrics, lastVisit: current.lastVisit }
+    })
+    if (replace) patients.splice(0, patients.length, ...next)
+    else next.forEach(patient => {
+      const current = patients.find(item => item.id === patient.id)
+      if (current) Object.assign(current, patient)
+      else patients.unshift(patient)
+    })
+    incoming.forEach(patient => {
+      if (!healthPlans.some(plan => plan.patientId === patient.id)) {
+        healthPlans.push({ patientId: patient.id, goals: '待设置', measures: '待设置', reviewCycle: '每月评估', updatedAt: displayTime().slice(0, 10) })
+      }
+    })
+  }
+
+  async function loadPatients(force = false) {
+    if (loadingPatients) return loadingPatients
+    if (patientsLoaded && !force) return
+    patientsLoading.value = true
+    patientsError.value = ''
+    loadingPatients = (async () => {
+      try {
+        syncPatients(await patientService.list(), true)
+        patientsWarning.value = patientStorageWarning
+        patientsLoaded = true
+      } catch (error) {
+        patientsError.value = error instanceof Error ? error.message : '患者数据加载失败'
+        throw error
+      } finally { patientsLoading.value = false; loadingPatients = undefined }
+    })()
+    return loadingPatients
+  }
+
+  function assertPatientWrite() {
+    if (!['doctor', 'seniorDoctor'].includes(useAuthStore().currentRole)) throw new Error('当前身份只能查看患者信息')
+  }
+
+  async function addPatient(input: PatientInput, actor: AuditActor) {
+    assertPatientWrite()
+    const patient = await patientService.create(input)
+    syncPatients([patient])
     recordAudit(actor, '新建患者档案', patient.id)
     return patient
   }
 
-  function updatePatient(id: string, patch: Partial<Pick<Patient, 'diagnosis' | 'history' | 'allergies' | 'plan'>>, actor: AuditActor) {
-    const patient = patients.find((item) => item.id === id)
-    if (!patient) return
-    Object.assign(patient, patch)
+  async function updatePatient(id: string, input: PatientInput, actor: AuditActor) {
+    assertPatientWrite()
+    const patient = await patientService.update(id, input)
+    syncPatients([patient])
     recordAudit(actor, '修改患者档案', id)
+    return patient
   }
 
-  function batchGroup(ids: string[], group: string, actor: AuditActor) {
-    patients.filter((patient) => ids.includes(patient.id)).forEach((patient) => { patient.group = group })
-    recordAudit(actor, '批量调整患者分组', `${ids.length} 名患者`)
+  async function batchUpdateClassification(ids: string[], change: ClassificationChange, actor: AuditActor) {
+    assertPatientWrite()
+    const updated = await patientService.batchUpdateClassification(ids, change)
+    syncPatients(updated)
+    recordAudit(actor, '批量调整患者分类', updated.map(patient => patient.id).join('、'))
   }
 
   function selectConsultation(id: string) {
@@ -503,7 +487,11 @@ export const useClinicalStore = defineStore('clinical', () => {
     selectPatient,
     addPatient,
     updatePatient,
-    batchGroup,
+    batchUpdateClassification,
+    loadPatients,
+    patientsLoading,
+    patientsError,
+    patientsWarning,
     selectConsultation,
     addMessage,
     startConsultation,

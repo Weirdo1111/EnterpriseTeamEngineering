@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { allergyText } from '@/utils/patients'
 import { computed, reactive, shallowRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -108,6 +109,10 @@ function exportRecord() {
 }
 
 syncRecord(selectedRecord.value)
+function recordAllergyText(patientId: string) {
+  const patient = clinicalStore.patients.find(item => item.id === patientId)
+  return patient ? allergyText(patient) : '未确认'
+}
 </script>
 
 <template>
@@ -166,7 +171,7 @@ syncRecord(selectedRecord.value)
 
           <aside class="review-column">
             <section v-if="selectedRecord.aiGenerated" class="assist-warning"><Sparkles :size="17" /><div><strong>辅助生成草稿</strong><span>请核对患者信息、诊断与每条医嘱后再提交</span></div></section>
-            <section class="risk-section"><h3>医嘱风险提示</h3><p>患者过敏史：{{ clinicalStore.patients.find((item) => item.id === selectedRecord.patientId)?.allergies.join('、') }}。开具相关药物前需再次确认。</p></section>
+            <section class="risk-section"><h3>医嘱风险提示</h3><p>患者过敏史：{{ recordAllergyText(selectedRecord.patientId) }}。开具相关药物前需再次确认。</p></section>
             <section class="review-section">
               <h3>分级审核</h3>
               <el-input v-model="reviewNote" type="textarea" :rows="5" resize="none" :disabled="!canReview" placeholder="填写审核意见" />

@@ -2,25 +2,46 @@ export type Role = 'doctor' | 'seniorDoctor' | 'admin'
 
 export type PatientStatus = 'stable' | 'warning' | 'critical'
 
+export type PatientManagementStatus = 'pending' | 'active' | 'closed'
+export type AllergyStatus = 'unknown' | 'none' | 'known'
+
+export interface PatientInput {
+  name: string
+  gender: '男' | '女'
+  age: number
+  phone: string
+  address: string
+  emergencyName: string
+  emergencyRelation: string
+  emergencyPhone: string
+  symptoms: string
+  diagnosis: string
+  history: string
+  allergyStatus: AllergyStatus
+  allergies: string[]
+  diseaseTags: string[]
+  managementStatus: PatientManagementStatus
+}
+
+export type ClassificationChange =
+  | { kind: 'addDisease' | 'removeDisease'; tags: string[] }
+  | { kind: 'managementStatus'; status: PatientManagementStatus }
+
 export type RecordStatus = 'draft' | 'pending' | 'approved' | 'returned' | 'archived'
 
 export type ConsultationStatus = 'waiting' | 'active' | 'completed'
 
 export type RemoteConsultationStatus = 'pending' | 'accepted' | 'inProgress' | 'completed'
 
-export interface Patient {
+export interface Patient extends PatientInput {
   id: string
-  name: string
-  gender: '男' | '女'
-  age: number
-  diagnosis: string
   group: string
   status: PatientStatus
-  allergies: string[]
-  history: string
   plan: string
   lastVisit: string
   ownerDoctor: string
+  createdAt: string
+  updatedAt: string
   metrics: {
     bloodPressure: string
     glucose: string

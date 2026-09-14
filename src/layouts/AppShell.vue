@@ -38,7 +38,7 @@ const navGroups = [
   {
     label: '诊疗业务',
     items: [
-      { path: '/patients', label: '患者管理', icon: Users },
+      { path: '/patients', label: '患者信息管理', icon: Users },
       { path: '/consultation', label: '图文问诊', icon: MessageSquareText },
       { path: '/records', label: '电子病历', icon: FileText },
       { path: '/remote-consultations', label: '远程会诊', icon: Video },
