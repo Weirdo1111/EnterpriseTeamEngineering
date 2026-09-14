@@ -18,17 +18,17 @@ const actor = computed(() => ({
 }))
 
 const summary = computed(() => [
-  { label: '待接诊', value: clinicalStore.waitingConsultations.length, note: '图文问诊队列' },
-  { label: '重点患者', value: clinicalStore.warningPatients.length, note: '需持续关注' },
-  { label: '待审核病历', value: clinicalStore.pendingRecords.length, note: '等待上级医生处理' },
-  { label: '会诊待办', value: clinicalStore.pendingRemoteConsultations.length, note: '远程协作任务' },
+  { label: 'Waiting', value: clinicalStore.waitingConsultations.length, note: 'Online consultation queue' },
+  { label: 'Priority Patients', value: clinicalStore.warningPatients.length, note: 'Requires close follow-up' },
+  { label: 'Records Pending Review', value: clinicalStore.pendingRecords.length, note: 'Awaiting senior physician review' },
+  { label: 'Consultation Tasks', value: clinicalStore.pendingRemoteConsultations.length, note: 'Remote collaboration tasks' },
 ])
 
 const tasks = computed(() => [
-  { id: 'T-01', time: '10:00', title: '王德胜气促与血氧下降需优先回复', meta: '图文问诊 · 高风险', tone: 'danger', path: '/consultation' },
-  { id: 'T-02', time: '11:30', title: '复核张建国三日家庭血压记录', meta: '慢病随访 · 今日到期', tone: 'warning', path: '/patients?patient=P-202609-001' },
-  { id: 'T-03', time: '14:30', title: '王德胜呼吸内科远程会诊', meta: '已接收 · 资料已齐', tone: 'primary', path: '/remote-consultations' },
-  { id: 'T-04', time: '16:00', title: '陈秀兰术后康复计划复评', meta: '健康管理 · 定期评估', tone: 'info', path: '/health-management?patient=P-202609-002' },
+  { id: 'T-01', time: '10:00', title: 'Prioritize response to Desheng Wang for dyspnea and low oxygen saturation', meta: 'Online consultation · High risk', tone: 'danger', path: '/consultation' },
+  { id: 'T-02', time: '11:30', title: "Review Jianguo Zhang's three-day home blood pressure log", meta: 'Chronic care · Due today', tone: 'warning', path: '/patients?patient=P-202609-001' },
+  { id: 'T-03', time: '14:30', title: 'Respiratory consultation for Desheng Wang', meta: 'Accepted · Documents ready', tone: 'primary', path: '/remote-consultations' },
+  { id: 'T-04', time: '16:00', title: "Reassess Xiulan Chen's postoperative rehabilitation plan", meta: 'Health management · Periodic assessment', tone: 'info', path: '/health-management?patient=P-202609-002' },
 ])
 
 const activeSessions = computed(() => clinicalStore.consultations.filter((item) => item.status !== 'completed'))
@@ -46,12 +46,12 @@ function openPatient(id: string) {
 
 <template>
   <div class="view-stack">
-    <PageHeader title="医生工作台" :description="`${authStore.profile.department} · 今日诊疗任务与重点患者`">
-      <el-button type="primary" @click="router.push('/consultation')">进入接诊</el-button>
-      <el-button @click="router.push('/patients')">查看患者</el-button>
+    <PageHeader title="Doctor Dashboard" :description="`${authStore.profile.department} · Today's clinical tasks and priority patients`">
+      <el-button type="primary" @click="router.push('/consultation')">Open Consultations</el-button>
+      <el-button @click="router.push('/patients')">View Patients</el-button>
     </PageHeader>
 
-    <section class="summary-panel" aria-label="今日工作摘要">
+    <section class="summary-panel" aria-label="Today's work summary">
       <div v-for="item in summary" :key="item.label" class="summary-item">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
@@ -62,7 +62,7 @@ function openPatient(id: string) {
     <section class="dashboard-grid">
       <article class="panel task-panel">
         <div class="panel-header">
-          <div><h2 class="panel-title">今日待办</h2><p class="panel-subtitle">按风险等级与计划时间排列</p></div>
+          <div><h2 class="panel-title">Today's Tasks</h2><p class="panel-subtitle">Ordered by risk and scheduled time</p></div>
           <CalendarClock :size="18" class="header-icon" />
         </div>
         <div class="task-list">
@@ -77,7 +77,7 @@ function openPatient(id: string) {
 
       <article class="panel queue-panel">
         <div class="panel-header">
-          <div><h2 class="panel-title">接诊队列</h2><p class="panel-subtitle">当前进行中和等待接诊的会话</p></div>
+          <div><h2 class="panel-title">Consultation Queue</h2><p class="panel-subtitle">Active sessions and consultations waiting to be accepted</p></div>
           <MessageSquareText :size="18" class="header-icon" />
         </div>
         <div class="queue-list">
@@ -85,7 +85,7 @@ function openPatient(id: string) {
             <span class="patient-avatar">{{ session.patientName.slice(-1) }}</span>
             <div><strong>{{ session.patientName }}</strong><small>{{ session.complaint }}</small></div>
             <div class="queue-state">
-              <el-tag :type="session.status === 'active' ? 'primary' : 'warning'" size="small" effect="plain">{{ session.status === 'active' ? '问诊中' : '待接诊' }}</el-tag>
+              <el-tag :type="session.status === 'active' ? 'primary' : 'warning'" size="small" effect="plain">{{ session.status === 'active' ? 'In Progress' : 'Waiting' }}</el-tag>
               <small>{{ session.updatedAt }}</small>
             </div>
           </button>
@@ -96,18 +96,18 @@ function openPatient(id: string) {
     <section class="dashboard-grid lower-grid">
       <article class="panel patient-panel">
         <div class="panel-header">
-          <div><h2 class="panel-title">重点患者</h2><p class="panel-subtitle">根据健康监测数据和随访记录整理</p></div>
+          <div><h2 class="panel-title">Priority Patients</h2><p class="panel-subtitle">Based on monitoring data and follow-up records</p></div>
         </div>
         <div class="patient-table-wrap">
           <table class="patient-table">
-            <thead><tr><th>患者</th><th>主要诊断</th><th>最新指标</th><th>状态</th><th></th></tr></thead>
+            <thead><tr><th>Patient</th><th>Primary Diagnosis</th><th>Latest Measurements</th><th>Status</th><th></th></tr></thead>
             <tbody>
               <tr v-for="patient in clinicalStore.warningPatients" :key="patient.id">
-                <td><strong>{{ patient.name }}</strong><small>{{ patient.age }} 岁 · {{ patient.id }}</small></td>
+                <td><strong>{{ patient.name }}</strong><small>{{ patient.age }} years · {{ patient.id }}</small></td>
                 <td>{{ patient.diagnosis }}</td>
-                <td>血压 {{ patient.metrics.bloodPressure }} · 心率 {{ patient.metrics.heartRate }}</td>
+                <td>Blood Pressure {{ patient.metrics.bloodPressure }} · Heart Rate {{ patient.metrics.heartRate }}</td>
                 <td><StatusBadge :status="patient.status" type="patient" /></td>
-                <td><el-button link type="primary" @click="openPatient(patient.id)">查看</el-button></td>
+                <td><el-button link type="primary" @click="openPatient(patient.id)">View</el-button></td>
               </tr>
             </tbody>
           </table>
@@ -116,16 +116,16 @@ function openPatient(id: string) {
 
       <aside class="side-stack">
         <article class="panel quick-panel">
-          <div class="panel-header"><div><h2 class="panel-title">常用入口</h2></div></div>
+          <div class="panel-header"><div><h2 class="panel-title">Quick Actions</h2></div></div>
           <div class="quick-links">
-            <button type="button" @click="router.push('/records')"><FileText :size="18" /><span>填写电子病历</span></button>
-            <button type="button" @click="router.push('/remote-consultations')"><Video :size="18" /><span>发起远程会诊</span></button>
+            <button type="button" @click="router.push('/records')"><FileText :size="18" /><span>Create Medical Record</span></button>
+            <button type="button" @click="router.push('/remote-consultations')"><Video :size="18" /><span>Start Remote Consultation</span></button>
           </div>
         </article>
         <article class="assist-note">
           <Sparkles :size="19" />
-          <div><strong>张建国的问诊记录可生成病历草稿</strong><span>生成后仍需医生核对主诉、诊断和医嘱</span></div>
-          <el-button size="small" @click="router.push('/ai-assistant')">使用辅助</el-button>
+          <div><strong>Jianguo Zhang's consultation can be converted into a medical record draft</strong><span>A physician must verify the complaint, diagnosis, and orders after generation</span></div>
+          <el-button size="small" @click="router.push('/ai-assistant')">Use Assistant</el-button>
         </article>
       </aside>
     </section>

@@ -18,9 +18,9 @@ const requestedRecord = typeof route.query.record === 'string' ? route.query.rec
 const selectedRecordId = shallowRef(clinicalStore.records.some((item) => item.id === requestedRecord) ? requestedRecord : clinicalStore.records[0]!.id)
 const orderDialogVisible = shallowRef(false)
 const editingOrderId = shallowRef('')
-const reviewNote = shallowRef('记录完整，诊断与医嘱依据清晰。')
+const reviewNote = shallowRef('The record is complete, with clear rationale for the diagnosis and orders.')
 const editableRecord = reactive({ chiefComplaint: '', presentIllness: '', diagnosis: '' })
-const orderForm = reactive<{ type: MedicalOrder['type']; content: string }>({ type: '药物', content: '' })
+const orderForm = reactive<{ type: MedicalOrder['type']; content: string }>({ type: 'Medication', content: '' })
 
 const selectedRecord = computed(() => clinicalStore.records.find((record) => record.id === selectedRecordId.value) ?? clinicalStore.records[0]!)
 const actor = computed(() => ({ name: authStore.profile.name, role: authStore.roleLabel, department: authStore.profile.department }))
@@ -31,7 +31,7 @@ function syncRecord(record: MedicalRecord) {
   editableRecord.chiefComplaint = record.chiefComplaint
   editableRecord.presentIllness = record.presentIllness
   editableRecord.diagnosis = record.diagnosis
-  reviewNote.value = record.reviewNote ?? '记录完整，诊断与医嘱依据清晰。'
+  reviewNote.value = record.reviewNote ?? 'The record is complete, with clear rationale for the diagnosis and orders.'
 }
 
 function selectRecord(record: MedicalRecord) {
@@ -49,86 +49,86 @@ watch(() => route.query.record, (value) => {
 function saveRecord(submit = false) {
   if (!canEdit.value) return
   clinicalStore.saveRecord(selectedRecord.value.id, { ...editableRecord }, actor.value, submit)
-  ElMessage.success(submit ? '病历已提交上级医生审核' : '病历草稿已保存')
+  ElMessage.success(submit ? 'Medical record submitted for senior review.' : 'Medical record draft saved.')
 }
 
 function generateRecord() {
   if (!canEdit.value) return
   const record = clinicalStore.createAiRecord(actor.value)
   selectRecord(record)
-  ElMessage.success('智能草稿已生成，请逐项核对')
+  ElMessage.success('AI draft generated. Review each item.')
 }
 
 function openOrderDialog(order?: MedicalOrder) {
   editingOrderId.value = order?.id ?? ''
-  orderForm.type = order?.type ?? '药物'
+  orderForm.type = order?.type ?? 'Medication'
   orderForm.content = order?.content ?? ''
   orderDialogVisible.value = true
 }
 
 function submitOrder() {
   if (!orderForm.content.trim()) {
-    ElMessage.warning('请填写医嘱内容')
+    ElMessage.warning('Enter the order details.')
     return
   }
   if (editingOrderId.value) clinicalStore.updateOrder(selectedRecord.value.id, editingOrderId.value, orderForm.content.trim(), actor.value)
   else clinicalStore.addOrder(selectedRecord.value.id, { type: orderForm.type, content: orderForm.content.trim() }, actor.value)
   orderDialogVisible.value = false
-  ElMessage.success(editingOrderId.value ? '医嘱已修改' : '医嘱已新增')
+  ElMessage.success(editingOrderId.value ? 'Order updated.' : 'Order added.')
 }
 
 async function stopOrder(order: MedicalOrder) {
   try {
-    await ElMessageBox.confirm('停止后该医嘱仍会保留在病历中，是否继续？', '停止医嘱', { confirmButtonText: '确认停止', cancelButtonText: '取消', type: 'warning' })
+    await ElMessageBox.confirm('The order will remain in the medical record after it is stopped. Continue?', 'Stop Order', { confirmButtonText: 'Stop Order', cancelButtonText: 'Cancel', type: 'warning' })
     clinicalStore.stopOrder(selectedRecord.value.id, order.id, actor.value)
-    ElMessage.success('医嘱已停止')
+    ElMessage.success('Order stopped.')
   } catch {
-    // 用户取消时保持当前医嘱状态。
+    // Keep the current order status when the user cancels.
   }
 }
 
 function review(status: 'approved' | 'returned') {
   if (!reviewNote.value.trim()) {
-    ElMessage.warning('请填写审核意见')
+    ElMessage.warning('Enter a review note.')
     return
   }
   clinicalStore.updateRecordStatus(selectedRecord.value.id, status, reviewNote.value.trim(), actor.value)
-  ElMessage.success(status === 'approved' ? '病历已审核通过' : '病历已退回修改')
+  ElMessage.success(status === 'approved' ? 'Medical record approved.' : 'Medical record returned for revision.')
 }
 
 function archiveRecord() {
-  clinicalStore.updateRecordStatus(selectedRecord.value.id, 'archived', reviewNote.value || '审核完成并归档。', actor.value)
-  ElMessage.success('病历已归档')
+  clinicalStore.updateRecordStatus(selectedRecord.value.id, 'archived', reviewNote.value || 'Review completed and archived.', actor.value)
+  ElMessage.success('Medical record archived.')
 }
 
 function exportRecord() {
   const record = selectedRecord.value
-  const orders = record.orders.map((order) => `${order.type}：${order.content}（${order.status === 'active' ? '执行中' : '已停止'}）`).join('\n')
-  downloadText(`${record.patientName}-${record.id}-电子病历.txt`, `电子病历 ${record.id}\n患者：${record.patientName}\n医生：${record.doctor}\n主诉：${record.chiefComplaint}\n现病史：${record.presentIllness}\n诊断：${record.diagnosis}\n\n医嘱\n${orders}\n\n审核意见：${record.reviewNote ?? '无'}`)
-  ElMessage.success('电子病历已导出')
+  const orders = record.orders.map((order) => `${order.type}: ${order.content} (${order.status === 'active' ? 'Active' : 'Stopped'})`).join('\n')
+  downloadText(`${record.patientName}-${record.id}-Medical-Record.txt`, `Medical Record ${record.id}\nPatient: ${record.patientName}\nPhysician: ${record.doctor}\nChief complaint: ${record.chiefComplaint}\nPresent illness: ${record.presentIllness}\nDiagnosis: ${record.diagnosis}\n\nOrders\n${orders}\n\nReview note: ${record.reviewNote ?? 'None'}`)
+  ElMessage.success('Medical record exported.')
 }
 
 syncRecord(selectedRecord.value)
 function recordAllergyText(patientId: string) {
   const patient = clinicalStore.patients.find(item => item.id === patientId)
-  return patient ? allergyText(patient) : '未确认'
+  return patient ? allergyText(patient) : 'Unconfirmed'
 }
 </script>
 
 <template>
   <div class="view-stack">
-    <PageHeader title="电子病历" description="使用结构化模板记录诊疗过程，医嘱和审核操作均保留变更记录">
-      <el-button :icon="Sparkles" :disabled="!canEdit" @click="generateRecord">生成辅助草稿</el-button>
-      <el-button :icon="Download" @click="exportRecord">导出病历</el-button>
-      <el-button :icon="Save" :disabled="!canEdit" @click="saveRecord(false)">保存草稿</el-button>
-      <el-button :icon="Send" type="primary" :disabled="!canEdit" @click="saveRecord(true)">提交审核</el-button>
+    <PageHeader title="Medical Records" description="Document care with structured templates; all order and review changes are retained">
+      <el-button :icon="Sparkles" :disabled="!canEdit" @click="generateRecord">Generate AI Draft</el-button>
+      <el-button :icon="Download" @click="exportRecord">Export Record</el-button>
+      <el-button :icon="Save" :disabled="!canEdit" @click="saveRecord(false)">Save Draft</el-button>
+      <el-button :icon="Send" type="primary" :disabled="!canEdit" @click="saveRecord(true)">Submit for Review</el-button>
     </PageHeader>
 
-    <p v-if="authStore.currentRole === 'admin'" class="permission-note">当前以管理员身份查看。管理员可审计记录，但不能修改诊疗内容。</p>
+    <p v-if="authStore.currentRole === 'admin'" class="permission-note">You are viewing as an administrator. Administrators can audit records but cannot edit clinical content.</p>
 
     <section class="records-layout">
       <article class="panel record-list-panel">
-        <div class="panel-header"><div><h2 class="panel-title">病历队列</h2><p class="panel-subtitle">按最近更新时间排列</p></div></div>
+        <div class="panel-header"><div><h2 class="panel-title">Record Queue</h2><p class="panel-subtitle">Sorted by most recent update</p></div></div>
         <div class="record-list">
           <button v-for="record in clinicalStore.records" :key="record.id" type="button" :class="{ active: record.id === selectedRecord.id }" @click="selectRecord(record)">
             <div><span>{{ record.id }}</span><StatusBadge :status="record.status" type="record" /></div>
@@ -141,27 +141,27 @@ function recordAllergyText(patientId: string) {
 
       <article class="panel workspace-panel">
         <div class="panel-header">
-          <div><h2 class="panel-title">{{ selectedRecord.patientName }} · 结构化病历</h2><p class="panel-subtitle">{{ selectedRecord.doctor }} · {{ selectedRecord.updatedAt }}</p></div>
+          <div><h2 class="panel-title">{{ selectedRecord.patientName }} · Structured Medical Record</h2><p class="panel-subtitle">{{ selectedRecord.doctor }} · {{ selectedRecord.updatedAt }}</p></div>
           <StatusBadge :status="selectedRecord.status" type="record" />
         </div>
 
         <div class="emr-layout">
           <div class="emr-main">
             <el-form label-position="top" class="emr-form">
-              <el-form-item label="主诉"><el-input v-model="editableRecord.chiefComplaint" :disabled="!canEdit" /></el-form-item>
-              <el-form-item label="现病史"><el-input v-model="editableRecord.presentIllness" type="textarea" :rows="5" resize="none" :disabled="!canEdit" /></el-form-item>
-              <el-form-item label="初步诊断"><el-input v-model="editableRecord.diagnosis" :disabled="!canEdit" /></el-form-item>
+              <el-form-item label="Chief Complaint"><el-input v-model="editableRecord.chiefComplaint" :disabled="!canEdit" /></el-form-item>
+              <el-form-item label="Present Illness"><el-input v-model="editableRecord.presentIllness" type="textarea" :rows="5" resize="none" :disabled="!canEdit" /></el-form-item>
+              <el-form-item label="Preliminary Diagnosis"><el-input v-model="editableRecord.diagnosis" :disabled="!canEdit" /></el-form-item>
             </el-form>
 
             <section class="orders-section">
-              <div class="orders-heading"><div><h3>医嘱</h3><p>支持新增、修改和停止，历史状态不会删除</p></div><el-button :icon="Plus" size="small" :disabled="!canEdit" @click="openOrderDialog()">新增医嘱</el-button></div>
+              <div class="orders-heading"><div><h3>Orders</h3><p>Orders can be added, edited, or stopped; historical states are retained</p></div><el-button :icon="Plus" size="small" :disabled="!canEdit" @click="openOrderDialog()">Add Order</el-button></div>
               <div class="order-table-wrap">
                 <table class="order-table">
-                  <thead><tr><th>类型</th><th>医嘱内容</th><th>状态</th><th>操作</th></tr></thead>
+                  <thead><tr><th>Type</th><th>Order Details</th><th>Status</th><th>Actions</th></tr></thead>
                   <tbody>
                     <tr v-for="order in selectedRecord.orders" :key="order.id" :class="{ stopped: order.status === 'stopped' }">
-                      <td>{{ order.type }}</td><td>{{ order.content }}</td><td><el-tag :type="order.status === 'active' ? 'success' : 'info'" size="small" effect="plain">{{ order.status === 'active' ? '执行中' : '已停止' }}</el-tag></td>
-                      <td><el-button :icon="Edit3" link type="primary" :disabled="!canEdit || order.status === 'stopped'" @click="openOrderDialog(order)">修改</el-button><el-button link type="danger" :disabled="!canEdit || order.status === 'stopped'" @click="stopOrder(order)">停止</el-button></td>
+                      <td>{{ order.type }}</td><td>{{ order.content }}</td><td><el-tag :type="order.status === 'active' ? 'success' : 'info'" size="small" effect="plain">{{ order.status === 'active' ? 'Active' : 'Stopped' }}</el-tag></td>
+                      <td><el-button :icon="Edit3" link type="primary" :disabled="!canEdit || order.status === 'stopped'" @click="openOrderDialog(order)">Edit</el-button><el-button link type="danger" :disabled="!canEdit || order.status === 'stopped'" @click="stopOrder(order)">Stop</el-button></td>
                     </tr>
                   </tbody>
                 </table>
@@ -170,23 +170,23 @@ function recordAllergyText(patientId: string) {
           </div>
 
           <aside class="review-column">
-            <section v-if="selectedRecord.aiGenerated" class="assist-warning"><Sparkles :size="17" /><div><strong>辅助生成草稿</strong><span>请核对患者信息、诊断与每条医嘱后再提交</span></div></section>
-            <section class="risk-section"><h3>医嘱风险提示</h3><p>患者过敏史：{{ recordAllergyText(selectedRecord.patientId) }}。开具相关药物前需再次确认。</p></section>
+            <section v-if="selectedRecord.aiGenerated" class="assist-warning"><Sparkles :size="17" /><div><strong>AI-generated Draft</strong><span>Verify patient details, diagnosis, and every order before submission</span></div></section>
+            <section class="risk-section"><h3>Order Risk Alert</h3><p>Patient allergies: {{ recordAllergyText(selectedRecord.patientId) }}. Confirm again before prescribing related medication.</p></section>
             <section class="review-section">
-              <h3>分级审核</h3>
-              <el-input v-model="reviewNote" type="textarea" :rows="5" resize="none" :disabled="!canReview" placeholder="填写审核意见" />
-              <p v-if="!canReview" class="review-hint">切换为上级医生身份后可执行审核。</p>
-              <div class="review-actions"><el-button type="success" :disabled="!canReview || selectedRecord.status !== 'pending'" @click="review('approved')">审核通过</el-button><el-button type="danger" plain :disabled="!canReview || selectedRecord.status !== 'pending'" @click="review('returned')">退回修改</el-button></div>
-              <el-button class="archive-button" :icon="Archive" :disabled="!canReview || selectedRecord.status !== 'approved'" @click="archiveRecord">归档病历</el-button>
+              <h3>Tiered Review</h3>
+              <el-input v-model="reviewNote" type="textarea" :rows="5" resize="none" :disabled="!canReview" placeholder="Enter review notes" />
+              <p v-if="!canReview" class="review-hint">Switch to the Senior Physician role to review this record.</p>
+              <div class="review-actions"><el-button type="success" :disabled="!canReview || selectedRecord.status !== 'pending'" @click="review('approved')">Approve</el-button><el-button type="danger" plain :disabled="!canReview || selectedRecord.status !== 'pending'" @click="review('returned')">Return for Revision</el-button></div>
+              <el-button class="archive-button" :icon="Archive" :disabled="!canReview || selectedRecord.status !== 'approved'" @click="archiveRecord">Archive Record</el-button>
             </section>
           </aside>
         </div>
       </article>
     </section>
 
-    <el-dialog v-model="orderDialogVisible" :title="editingOrderId ? '修改医嘱' : '新增医嘱'" width="520px">
-      <el-form label-position="top"><el-form-item label="医嘱类型"><el-select v-model="orderForm.type"><el-option v-for="type in ['药物', '检查', '检验', '护理']" :key="type" :label="type" :value="type" /></el-select></el-form-item><el-form-item label="医嘱内容"><el-input v-model="orderForm.content" type="textarea" :rows="4" /></el-form-item></el-form>
-      <template #footer><el-button @click="orderDialogVisible = false">取消</el-button><el-button type="primary" @click="submitOrder">保存医嘱</el-button></template>
+    <el-dialog v-model="orderDialogVisible" :title="editingOrderId ? 'Edit Order' : 'Add Order'" width="520px">
+      <el-form label-position="top"><el-form-item label="Order Type"><el-select v-model="orderForm.type"><el-option v-for="type in ['Medication', 'Examination', 'Laboratory', 'Nursing']" :key="type" :label="type" :value="type" /></el-select></el-form-item><el-form-item label="Order Details"><el-input v-model="orderForm.content" type="textarea" :rows="4" /></el-form-item></el-form>
+      <template #footer><el-button @click="orderDialogVisible = false">Cancel</el-button><el-button type="primary" @click="submitOrder">Save Order</el-button></template>
     </el-dialog>
   </div>
 </template>

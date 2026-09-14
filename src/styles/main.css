@@ -20,13 +20,11 @@
   --radius: 5px;
   --shadow-float: 0 10px 28px rgba(23, 36, 45, 0.13);
   font-family:
-    "Noto Sans SC",
-    "Microsoft YaHei",
-    "PingFang SC",
+    Inter,
+    "Segoe UI",
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
-    "Segoe UI",
     sans-serif;
 }
 

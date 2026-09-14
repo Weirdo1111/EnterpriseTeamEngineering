@@ -1,58 +1,60 @@
-# 智慧医养医生服务系统前端
+# Smart Healthcare Doctor Service System
 
-基于 Vue 3 + TypeScript + Element Plus 的医生工作平台前端原型，采用接近医院工作站的紧凑布局，围绕医生日常任务实现可交互业务闭环。
+A Vue 3, TypeScript, and Element Plus doctor workspace prototype with a compact clinical workstation layout and end-to-end interactive workflows.
 
-## 功能范围
+## Feature Scope
 
-- 多方式登录与角色演示：密码加验证码、短信验证、人脸核验演示
-- 医生工作台：今日待办、接诊队列、重点患者和会诊任务
-- 患者信息管理：多条件搜索、分页、新建与编辑档案、病种标签、管理状态及批量分类
-- 图文问诊：会话队列、资料上传、历史导出、摘要和病历草稿
-- 电子病历：结构化病历、可变更医嘱、分级审核与归档
-- 远程会诊：申请、接收、添加专家、会诊意见和报告生成
-- 健康管理：健康计划、提醒任务、监测趋势和定期评估
-- 智能辅助：病历草稿、问诊摘要、相似记录和医嘱风险核验
-- 分角色操作记录：医生本人、本科室或全平台范围
+- Multi-method sign-in and role demos: password with verification code, SMS verification, and facial verification
+- Doctor dashboard: daily tasks, consultation queue, priority patients, and referral tasks
+- Patient information management: combined search, pagination, profile creation/editing, condition tags, management statuses, and bulk classification
+- Online consultation: session queue, uploads, history export, summaries, and record drafts
+- Electronic medical records: structured records, editable orders, tiered review, and archiving
+- Remote consultation: requests, acceptance, specialist assignment, opinions, and report generation
+- Health management: care plans, reminders, monitoring trends, and periodic assessments
+- AI assistant: record drafts, consultation summaries, similar records, and order risk checks
+- Role-scoped audit logs: personal, department, or platform-wide visibility
 
-所有业务数据和外部服务均为本地演示，不调用真实患者系统、短信、人脸识别或医疗 AI 服务。
+All business data and external services are local demonstrations. The app does not connect to real patient systems, SMS providers, facial recognition, or medical AI services.
 
-## 患者信息管理
+## Patient Information Management
 
-访问 `/patients`；`/patients?patient=患者ID` 可直接定位患者及所在分页。模块仅维护患者信息，不包含健康趋势、健康计划或随访功能。
+Visit `/patients`, or `/patients?patient=PATIENT_ID` to locate a patient and their page. This module maintains patient information; health trends, care plans, and follow-ups belong to Health Management.
 
-- 姓名、ID、症状、主要诊断、病史可关键词搜索，与病种、管理状态组合筛选；默认每页 10 条，可选 20、50 条。
-- 新建和编辑共用表单。姓名、性别、整数年龄（1–120）必填；联系方式、紧急联系人、诊断和病史可按需补充。
-- 过敏史明确区分未确认、无已知过敏、有过敏史；有过敏史时至少填写一项。
-- 一名患者可有多个病种标签，管理状态为待建档、管理中或已结束；管理状态与风险等级无关。
-- 批量操作只影响当前页勾选患者，支持添加病种、移除病种、修改管理状态；翻页或改变筛选后清空勾选。
-- 医生和上级医生可修改，管理员只读。这是前端演示规则，不是生产环境的数据访问权限实现。
+- Search by name, ID, symptoms, diagnosis, or medical history, combined with condition and management status filters. Page sizes: 10, 20, or 50.
+- Create and edit through one form. Name, gender, and whole-number age (1–120) are required. Contact details, emergency contacts, diagnosis, and history are optional; emergency contacts require both name and phone.
+- Allergy status distinguishes Unconfirmed, No known allergies, and Known allergies. Known allergies require at least one entry.
+- Patients can have multiple condition tags. Management status is Pending Intake (`pending`), Active (`active`), or Closed (`closed`), stored separately from clinical risk.
+- Bulk operations add conditions, remove conditions, or set a management status for selected patients on the current page. Filters, pagination, and completed operations clear selection.
+- Physicians and senior physicians can write; administrators have read-only access. Permissions and audit logs are frontend demonstrations, not production security controls.
 
-### 模拟数据与持久化
+### Demo data and persistence
 
-`src/mocks/patients.ts` 提供 24 位虚构患者，保留原有四位患者的 ID 及业务关联。患者信息保存到当前浏览器的 `doctor-platform-patient-information-v1` 本地存储项，不上传服务器，也不与其他浏览器、电脑同步。
+`src/mocks/patients.ts` provides 24 fictional patients, preserving the four original patient IDs and cross-module links. The original four English fixtures match `main`.
 
-成功保存后，刷新仍可恢复新增患者及档案修改。数据格式异常会显示提醒并使用初始模拟数据；存储读取或写入失败会显示错误。写入失败不会更新页面缓存或记录成功日志。只持久化患者档案字段，健康计划、监测数据和其他模块的操作仍使用原有演示逻辑。新增患者在初始化时补齐独立的健康计划占位关联，避免串用另一位患者的计划。
+Profiles are stored only in this browser under `doctor-platform-patient-information-v1`. The key stays unchanged so existing profiles can be recovered; its payload now uses **schema version 2**. Version 1 records are migrated in memory: Chinese gender values become `Male`/`Female`, known condition tags are translated and deduplicated, and demo physician names are aligned with the English profiles. User-entered names, histories, allergies, and custom tags remain unchanged, so previously saved text can still appear in Chinese. Reads do not write storage, including administrator reads. The next successful save persists version 2; a failed save leaves the original data intact.
 
-开发时如需重置患者演示数据，可在浏览器开发者工具的 Application / Local Storage 中仅删除上述患者信息存储项，再刷新；不要清除团队其他模块的存储项。页面没有删除患者的业务入口。
+Only patient-information fields persist. Risk, metrics, health plans, and other modules keep their existing demo lifecycle. Newly created patients receive their own downstream plan placeholder to avoid showing another patient's plan. Invalid data triggers a warning and initial fixtures; storage access failures show errors. Failed saves do not update shared state or record success.
 
-### 后续接口对接
+To reset demo profiles during development, delete only that patient storage key using browser developer tools, then refresh. There is no patient deletion workflow in this module.
 
-`src/services/patients.ts` 定义异步 `PatientService`：`list()`、`getById(id)`、`create(input)`、`update(id, input)`、`batchUpdateClassification(ids, change)`。现阶段 `list()` 返回完整患者集合，分页与筛选在前端执行。
+### Future API integration
 
-页面通过 `useClinicalStore` 调用该服务。未来将导出的 `patientService` 替换为真实 HTTP 适配器即可沿用表单与共享状态；具体端点、鉴权和服务端分页协议需与后端确定。`PatientInput` 仅包含可编辑档案字段，不能覆盖 ID、责任医生、风险等级或健康计划。真实后端需重新执行权限、输入校验及事务控制。
+`src/services/patients.ts` defines the asynchronous `PatientService`: `list()`, `getById(id)`, `create(input)`, `update(id, input)`, and `batchUpdateClassification(ids, change)`. The page calls this service through the shared clinical Pinia store. Currently, `list()` loads all patients and filtering/pagination run in the browser.
 
-### 测试
+Replace the exported `patientService` adapter when the real API is ready. Endpoints, authentication, and server pagination must be agreed with the backend. `PatientInput` allows only editable profile fields, excluding IDs, ownership, risk, and health plans. A real backend must enforce authorization, validation, and atomic writes.
+
+### Verification
 
 ```bash
 npm test
 npm run build
 ```
 
-Vitest 覆盖模拟服务、持久化、批量操作原子性、角色限制、检索、字段校验及共享状态兼容。CI 在 PR 中执行构建和测试。
+Vitest covers persistence, version migration, atomic bulk operations, failures, permissions, validation, filtering, and shared-store compatibility. CI runs the build and tests.
 
-手工验收：组合筛选与空结果；新建后刷新；修改、取消和过敏史校验；三种批量操作及翻页清空勾选；全局搜索定位与无效 ID；管理员只读；1440px、1024px、390px 页面和弹窗布局。另回归问诊、病历、会诊和健康管理入口。
+Browser checks cover combined filters and empty results; creating/editing and refresh; cancel protection and allergy validation; bulk operations and selection clearing; deep links and invalid IDs; administrator access; and layouts at 1440px, 1024px, and 390px. Recheck consultation, records, remote consultation, and health management after integration.
 
-## 技术栈
+## Technology Stack
 
 - Vue 3
 - TypeScript
@@ -63,20 +65,20 @@ Vitest 覆盖模拟服务、持久化、批量操作原子性、角色限制、�
 - ECharts
 - @lucide/vue
 
-## 本地运行
+## Local Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-默认访问：
+Default URL:
 
 ```text
 http://127.0.0.1:5173/
 ```
 
-## 构建
+## Build
 
 ```bash
 npm run build

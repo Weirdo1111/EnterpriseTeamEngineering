@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { createMockPatientService, PATIENT_STORAGE_KEY } from './patients'
+import { createMockPatientService, PATIENT_STORAGE_KEY, PATIENT_STORAGE_VERSION } from './patients'
 import { patientsSeed } from '@/mocks/patients'
 import { allergyText, emptyPatientInput, filterPatients, toPatientInput, validatePatient } from '@/utils/patients'
 import { useAuthStore } from '@/stores/auth'
@@ -17,7 +17,7 @@ describe('patient service', () => {
   let storage: ReturnType<typeof memoryStorage>
   let role: Role
   let recovered: ReturnType<typeof vi.fn>
-  const create = () => createMockPatientService({ storage: () => storage, role: () => role, owner: () => '测试医生', onRecovery: recovered })
+  const create = () => createMockPatientService({ storage: () => storage, role: () => role, owner: () => '测试Physician', onRecovery: recovered })
   beforeEach(() => { storage = memoryStorage(); role = 'doctor'; recovered = vi.fn() })
 
   it('retains 24 fixtures and the four existing linked IDs', async () => {
@@ -31,6 +31,45 @@ describe('patient service', () => {
     expect(patient.managementStatus).toBe('pending')
     expect(patient.diagnosis).toBe('')
     expect((await create().getById(patient.id)).name).toBe(input().name)
+  })
+  it('migrates legacy gender and preset tags while preserving saved profile text and IDs', async () => {
+    const saved = patientsSeed.slice(0, 2).map((p, i) => ({
+      ...p, gender: i ? '女' : '男', name: `用户录入姓名${i}`, history: '用户录入的原始病史',
+      allergies: ['用户录入过敏项'], allergyStatus: 'known',
+      diseaseTags: ['高血压', 'Hypertension', '自定义标签'], ownerDoctor: '林若医生',
+    }))
+    const raw = JSON.stringify({ version: 1, patients: saved })
+    storage.setItem(PATIENT_STORAGE_KEY, raw)
+    storage.setItem.mockClear()
+    role = 'admin'
+    const restored = await create().list()
+    expect(restored.map(p => p.gender)).toEqual(['Male', 'Female'])
+    expect(restored[0]).toMatchObject({
+      id: saved[0]!.id, name: saved[0]!.name, history: saved[0]!.history,
+      allergies: ['用户录入过敏项'], diseaseTags: ['Hypertension', '自定义标签'],
+      ownerDoctor: 'Dr. Riley Lin', createdAt: saved[0]!.createdAt, managementStatus: 'active',
+    })
+    expect(storage.setItem).not.toHaveBeenCalled()
+    expect(storage.getItem(PATIENT_STORAGE_KEY)).toBe(raw)
+    expect(recovered).not.toHaveBeenCalled()
+    role = 'doctor'
+    await create().update(restored[0]!.id, toPatientInput(restored[0]!))
+    expect(JSON.parse(storage.getItem(PATIENT_STORAGE_KEY)!).version).toBe(PATIENT_STORAGE_VERSION)
+    expect((await create().list())[1]!.name).toBe(saved[1]!.name)
+  })
+  it('keeps legacy data intact when the first migrated save fails', async () => {
+    const legacy = { ...patientsSeed[0]!, gender: '男' }
+    const raw = JSON.stringify({ version: 1, patients: [legacy] })
+    storage.setItem(PATIENT_STORAGE_KEY, raw)
+    storage.setItem.mockImplementationOnce(() => { throw new Error('Quota exceeded') })
+    await expect(create().create(input())).rejects.toThrow('Save failed')
+    expect(storage.getItem(PATIENT_STORAGE_KEY)).toBe(raw)
+    expect((await create().list())[0]!.gender).toBe('Male')
+    expect(recovered).not.toHaveBeenCalled()
+  })
+  it('preserves custom tags in version 2 without treating them as legacy presets', async () => {
+    const p = await create().create({ ...input(), diseaseTags: ['高血压', 'Hypertension', 'custom'] })
+    expect((await create().getById(p.id)).diseaseTags).toEqual(['高血压', 'Hypertension', 'custom'])
   })
   it('generates unique IDs across repeated creation and reloads', async () => {
     const ids = await Promise.all(Array.from({ length: 12 }, async () => (await create().create(input())).id))
@@ -51,12 +90,12 @@ describe('patient service', () => {
   })
   it('adds unique trimmed tags without replacing existing diseases', async () => {
     const p = patientsSeed[0]!
-    const [updated] = await create().batchUpdateClassification([p.id], { kind: 'addDisease', tags: [' 高血压 ', '冠心病', '冠心病'] })
-    expect(updated!.diseaseTags).toEqual(['高血压', '糖尿病', '冠心病'])
+    const [updated] = await create().batchUpdateClassification([p.id], { kind: 'addDisease', tags: [' Hypertension ', 'Coronary Heart Disease', 'Coronary Heart Disease'] })
+    expect(updated!.diseaseTags).toEqual(['Hypertension', 'Diabetes', 'Coronary Heart Disease'])
   })
   it('removes only the selected disease', async () => {
-    const [p] = await create().batchUpdateClassification([patientsSeed[0]!.id], { kind: 'removeDisease', tags: ['高血压'] })
-    expect(p!.diseaseTags).toEqual(['糖尿病'])
+    const [p] = await create().batchUpdateClassification([patientsSeed[0]!.id], { kind: 'removeDisease', tags: ['Hypertension'] })
+    expect(p!.diseaseTags).toEqual(['Diabetes'])
   })
   it('updates management status without changing risk status or other patients', async () => {
     const service = create()
@@ -66,29 +105,29 @@ describe('patient service', () => {
     expect((await service.getById(patientsSeed[1]!.id)).managementStatus).toBe('active')
   })
   it('rejects a batch containing an unknown ID without partial writes', async () => {
-    await expect(create().batchUpdateClassification([patientsSeed[0]!.id, 'missing'], { kind: 'managementStatus', status: 'closed' })).rejects.toThrow('患者不存在')
+    await expect(create().batchUpdateClassification([patientsSeed[0]!.id, 'missing'], { kind: 'managementStatus', status: 'closed' })).rejects.toThrow('Patient not found')
     expect(storage.setItem).not.toHaveBeenCalled()
   })
   it('rejects all writes for admin, while allowing reads', async () => {
     role = 'admin'
     const service = create()
     expect(await service.list()).toHaveLength(24)
-    await expect(service.create(input())).rejects.toThrow('只能查看')
-    await expect(service.update(patientsSeed[0]!.id, input())).rejects.toThrow('只能查看')
-    await expect(service.batchUpdateClassification([patientsSeed[0]!.id], { kind: 'managementStatus', status: 'closed' })).rejects.toThrow('只能查看')
+    await expect(service.create(input())).rejects.toThrow('read-only')
+    await expect(service.update(patientsSeed[0]!.id, input())).rejects.toThrow('read-only')
+    await expect(service.batchUpdateClassification([patientsSeed[0]!.id], { kind: 'managementStatus', status: 'closed' })).rejects.toThrow('read-only')
     expect(storage.setItem).not.toHaveBeenCalled()
   })
   it('allows senior doctors to write', async () => { role = 'seniorDoctor'; expect((await create().create(input())).name).toBe(input().name) })
   it('fails atomically when storage cannot be written, and can retry', async () => {
     const service = create()
     storage.setItem.mockImplementationOnce(() => { throw new Error('Quota exceeded') })
-    await expect(service.batchUpdateClassification(patientsSeed.slice(0, 2).map(p => p.id), { kind: 'managementStatus', status: 'closed' })).rejects.toThrow('保存失败')
+    await expect(service.batchUpdateClassification(patientsSeed.slice(0, 2).map(p => p.id), { kind: 'managementStatus', status: 'closed' })).rejects.toThrow('Save failed')
     expect((await service.list()).slice(0, 2).every(p => p.managementStatus === 'active')).toBe(true)
     await expect(service.create(input())).resolves.toMatchObject({ name: input().name })
   })
   it('does not mask storage read errors', async () => {
     storage.getItem.mockImplementation(() => { throw new Error('Access denied') })
-    await expect(create().list()).rejects.toThrow('无法读取')
+    await expect(create().list()).rejects.toThrow('Unable to read')
   })
   it.each(['broken JSON', '{"version":99,"patients":[]}', '{"version":1,"patients":[{}]}'])('recovers invalid storage with a warning: %s', async raw => {
     storage.setItem(PATIENT_STORAGE_KEY, raw)
@@ -129,17 +168,17 @@ describe('validation and search', () => {
   })
   it.each(['13800000000', '010-12345678', '+44 20 7946 0958'])('accepts phone format %s', phone => { expect(validatePatient({ ...input(), phone })).toEqual({}) })
   it('distinguishes unknown from no known allergies and clears stale entries', () => {
-    expect(allergyText(input())).toBe('未确认')
+    expect(allergyText(input())).toBe('Unconfirmed')
     const none = toPatientInput({ ...input(), allergyStatus: 'none', allergies: ['青霉素'] })
     expect(none.allergies).toEqual([])
-    expect(allergyText(none)).toBe('无已知过敏')
+    expect(allergyText(none)).toBe('No known allergies')
   })
-  it.each(['张建国', 'p-202609-001', '晨起头胀', '高血压合并糖尿病', '高血压病史 12 年'])('searches name, ID, symptoms, diagnosis and history: %s', keyword => {
+  it.each(['Jianguo Zhang', 'p-202609-001', 'Morning head pressure', 'Hypertension with Diabetes', 'Twelve-year history of hypertension'])('searches name, ID, symptoms, diagnosis and history: %s', keyword => {
     expect(filterPatients(patientsSeed, { keyword, disease: '', status: '' }).map(p => p.id)).toContain('P-202609-001')
   })
   it('combines all filters and supports no results', () => {
-    expect(filterPatients(patientsSeed, { keyword: '张建国', disease: '糖尿病', status: 'active' })).toHaveLength(1)
-    expect(filterPatients(patientsSeed, { keyword: '张建国', disease: '糖尿病', status: 'closed' })).toHaveLength(0)
+    expect(filterPatients(patientsSeed, { keyword: 'Jianguo Zhang', disease: 'Diabetes', status: 'active' })).toHaveLength(1)
+    expect(filterPatients(patientsSeed, { keyword: 'Jianguo Zhang', disease: 'Diabetes', status: 'closed' })).toHaveLength(0)
   })
 })
 
@@ -152,7 +191,7 @@ describe('shared clinical store compatibility', () => {
     setActivePinia(createPinia())
   })
   afterEach(() => vi.unstubAllGlobals())
-  const actor = { name: '林若医生', role: '医生', department: '老年医学科' }
+  const actor = { name: 'Dr. Riley Lin', role: 'Physician', department: 'Geriatric Medicine' }
   it('syncs saved information without overwriting runtime health changes', async () => {
     const store = useClinicalStore()
     await store.loadPatients()
@@ -163,7 +202,7 @@ describe('shared clinical store compatibility', () => {
     expect(store.patients[0]!.plan).toBe('另一模块的新计划')
     expect(store.patients[0]!.metrics.heartRate).toBe(75)
     expect(store.patients[0]!.name).toBe('已编辑患者')
-    expect(store.auditLogs[0]!.action).toBe('修改患者档案')
+    expect(store.auditLogs[0]!.action).toBe('Updated patient profile')
   })
   it('restores newly created patients with their own downstream plan placeholders', async () => {
     const created = await useClinicalStore().addPatient(input(), actor)
@@ -171,20 +210,20 @@ describe('shared clinical store compatibility', () => {
     const fresh = useClinicalStore()
     await fresh.loadPatients()
     expect(fresh.patients.some(p => p.id === created.id)).toBe(true)
-    expect(fresh.healthPlans.find(plan => plan.patientId === created.id)).toMatchObject({ patientId: created.id, measures: '待设置' })
+    expect(fresh.healthPlans.find(plan => plan.patientId === created.id)).toMatchObject({ patientId: created.id, measures: 'Not set' })
   })
   it('does not mutate shared data or audit success on failed save', async () => {
     const store = useClinicalStore()
     const before = JSON.stringify(store.patients)
     const audits = store.auditLogs.length
     storage.setItem.mockImplementation(() => { throw new Error('denied') })
-    await expect(store.updatePatient(store.patients[0]!.id, input(), actor)).rejects.toThrow('保存失败')
+    await expect(store.updatePatient(store.patients[0]!.id, input(), actor)).rejects.toThrow('Save failed')
     expect(JSON.stringify(store.patients)).toBe(before)
     expect(store.auditLogs).toHaveLength(audits)
   })
   it('checks live role even if an old editing dialog was open', async () => {
     const store = useClinicalStore()
     useAuthStore().currentRole = 'admin'
-    await expect(store.addPatient(input(), actor)).rejects.toThrow('只能查看')
+    await expect(store.addPatient(input(), actor)).rejects.toThrow('read-only')
   })
 })

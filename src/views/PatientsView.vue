@@ -39,7 +39,7 @@ const filtered = computed(() => filterPatients(store.patients, filters))
 const visiblePatients = computed(() => filtered.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value))
 const selectedPatient = computed(() => !invalidTarget.value && !store.patientsError ? visiblePatients.value.find(p => p.id === selectedId.value) ?? null : null)
 const diseaseOptions = computed(() => cleanTags([...defaultDiseaseTags, ...store.patients.flatMap(p => p.diseaseTags)]))
-const batchDescription = computed(() => batchKind.value === 'managementStatus' ? `修改管理状态为「${managementLabels[batchStatus.value]}」` : `${batchKind.value === 'addDisease' ? '添加' : '移除'}病种：${cleanTags(batchTags.value).join('、') || '尚未选择'}`)
+const batchDescription = computed(() => batchKind.value === 'managementStatus' ? `Set management status to ${managementLabels[batchStatus.value]}` : `${batchKind.value === 'addDisease' ? 'Add' : 'Remove'} conditions: ${cleanTags(batchTags.value).join(', ') || 'None selected'}`)
 function clearSelection() { selectedIds.value = []; table.value?.clearSelection() }
 function selectPatient(patient: Patient) {
   selectedId.value = patient.id; invalidTarget.value = false; activeTab.value = 'basic'
@@ -66,7 +66,7 @@ function resetFilters() { Object.assign(filters, { keyword: '', disease: '', sta
 async function locate(id: string) {
   resetFilters(); await nextTick()
   const index = filtered.value.findIndex(p => p.id === id)
-  if (index < 0) { invalidTarget.value = true; selectedId.value = ''; table.value?.setCurrentRow(); ElMessage.warning('患者不存在'); return }
+  if (index < 0) { invalidTarget.value = true; selectedId.value = ''; table.value?.setCurrentRow(); ElMessage.warning('Patient not found'); return }
   page.value = Math.floor(index / pageSize.value) + 1
   selectPatient(filtered.value[index]!); await nextTick(); table.value?.setCurrentRow(filtered.value[index]!)
 }
@@ -95,8 +95,8 @@ async function save(input: PatientInput) {
     formVisible.value = false
     if (!editingPatient.value) { await locate(patient.id); await router.replace({ query: { ...route.query, patient: patient.id } }) }
     else { await nextTick(); settleSelection() }
-    ElMessage.success(editingPatient.value ? '患者档案已更新' : '患者档案已建立')
-  } catch (error) { saveError.value = error instanceof Error ? error.message : '保存失败，请重试' }
+    ElMessage.success(editingPatient.value ? 'Patient profile updated.' : 'Patient profile created.')
+  } catch (error) { saveError.value = error instanceof Error ? error.message : 'Save failed. Please retry.' }
   finally { saving.value = false }
 }
 function openBatch() {
@@ -105,90 +105,90 @@ function openBatch() {
 }
 async function submitBatch() {
   if (!canEdit.value || batchSaving.value) return
-  if (batchKind.value !== 'managementStatus' && !cleanTags(batchTags.value).length) { batchError.value = '请至少选择一个病种'; return }
+  if (batchKind.value !== 'managementStatus' && !cleanTags(batchTags.value).length) { batchError.value = 'Select at least one condition.'; return }
   batchSaving.value = true; batchError.value = ''
   const ids = [...selectedIds.value]
   const change: ClassificationChange = batchKind.value === 'managementStatus' ? { kind: 'managementStatus', status: batchStatus.value } : { kind: batchKind.value, tags: cleanTags(batchTags.value) }
   try {
     await store.batchUpdateClassification(ids, change, actor.value)
     batchVisible.value = false; clearSelection(); await nextTick(); settleSelection()
-    ElMessage.success(`已调整 ${ids.length} 名患者的分类`)
-  } catch (error) { batchError.value = error instanceof Error ? error.message : '调整失败，请重试' }
+    ElMessage.success(`Updated classifications for ${ids.length} patients.`)
+  } catch (error) { batchError.value = error instanceof Error ? error.message : 'Update failed. Please retry.' }
   finally { batchSaving.value = false }
 }
 function selectionChanged(rows: Patient[]) { selectedIds.value = rows.map(p => p.id) }
-const showValue = (value: string) => value || '未填写'
-const showTime = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false })
+const showValue = (value: string) => value || 'Not provided'
+const showTime = (value: string) => new Date(value).toLocaleString('en-US', { hour12: false })
 </script>
 <template>
   <div class="view-stack">
-    <PageHeader title="患者信息管理" description="检索患者、维护基础档案，按病种与管理状态分类">
-      <el-button :icon="Plus" type="primary" :disabled="!canEdit || !!store.patientsError || store.patientsLoading" @click="openForm(null)">新建患者</el-button>
-      <el-button :icon="FolderInput" :disabled="!canEdit || !selectedIds.length || !!store.patientsError" @click="openBatch">批量调整<span v-if="selectedIds.length">（{{ selectedIds.length }}）</span></el-button>
+    <PageHeader title="Patient Information Management" description="Find patients, maintain profiles, and classify by condition and management status">
+      <el-button :icon="Plus" type="primary" :disabled="!canEdit || !!store.patientsError || store.patientsLoading" @click="openForm(null)">New Patient</el-button>
+      <el-button :icon="FolderInput" :disabled="!canEdit || !selectedIds.length || !!store.patientsError" @click="openBatch">Bulk Update<span v-if="selectedIds.length"> ({{ selectedIds.length }})</span></el-button>
     </PageHeader>
-    <el-alert title="当前为本地模拟数据，所有患者均为虚构；已保存的档案在本浏览器刷新后保留。" type="info" :closable="false" show-icon />
-    <el-alert v-if="!canEdit" title="当前以管理员身份查看，不能新建或修改患者档案。" type="warning" :closable="false" />
+    <el-alert title="All patients are fictional demo data. Saved profiles remain available after refreshing this browser." type="info" :closable="false" show-icon />
+    <el-alert v-if="!canEdit" title="Administrator view: patient profiles are read-only." type="warning" :closable="false" />
     <el-alert v-if="store.patientsWarning" :title="store.patientsWarning" type="warning" :closable="false" show-icon />
     <section class="patients-layout">
-      <article class="panel patient-table-panel" v-loading="store.patientsLoading" element-loading-text="正在加载患者信息">
-        <div class="panel-header"><div><h2 class="panel-title">患者列表</h2><p class="panel-subtitle">共 {{ filtered.length }} 名患者 · 点击行查看档案</p></div></div>
+      <article class="panel patient-table-panel" v-loading="store.patientsLoading" element-loading-text="Loading patient information">
+        <div class="panel-header"><div><h2 class="panel-title">Patient List</h2><p class="panel-subtitle">{{ filtered.length }} patients · Select a row to view the profile</p></div></div>
         <div class="panel-body">
           <div class="filter-bar">
-            <el-input v-model="filters.keyword" aria-label="搜索患者" clearable placeholder="姓名、ID、症状、诊断或病史"><template #prefix><Search :size="16" /></template></el-input>
-            <el-select v-model="filters.disease" aria-label="筛选病种" clearable filterable placeholder="全部病种"><el-option v-for="tag in diseaseOptions" :key="tag" :label="tag" :value="tag" /></el-select>
-            <el-select v-model="filters.status" aria-label="筛选管理状态" clearable placeholder="全部管理状态"><el-option v-for="(label, value) in managementLabels" :key="value" :label="label" :value="value" /></el-select>
-            <el-button :icon="RotateCcw" @click="resetFilters">重置</el-button>
+            <el-input v-model="filters.keyword" aria-label="Search patients" clearable placeholder="Name, ID, symptoms, diagnosis, or history"><template #prefix><Search :size="16" /></template></el-input>
+            <el-select v-model="filters.disease" aria-label="Filter condition" clearable filterable placeholder="All conditions"><el-option v-for="tag in diseaseOptions" :key="tag" :label="tag" :value="tag" /></el-select>
+            <el-select v-model="filters.status" aria-label="Filter management status" clearable placeholder="All statuses"><el-option v-for="(label, value) in managementLabels" :key="value" :label="label" :value="value" /></el-select>
+            <el-button :icon="RotateCcw" @click="resetFilters">Reset</el-button>
           </div>
-          <div v-if="store.patientsError" class="load-error" role="alert"><p>{{ store.patientsError }}</p><el-button @click="load">重新加载</el-button></div>
+          <div v-if="store.patientsError" class="load-error" role="alert"><p>{{ store.patientsError }}</p><el-button @click="load">Reload</el-button></div>
           <template v-else>
             <el-table ref="table" :data="visiblePatients" row-key="id" highlight-current-row @row-click="selectPatient" @selection-change="selectionChanged">
               <el-table-column type="selection" width="42" :selectable="() => canEdit" />
-              <el-table-column prop="id" label="患者 ID" min-width="145" show-overflow-tooltip />
-              <el-table-column prop="name" label="姓名" width="96" />
-              <el-table-column label="性别 / 年龄" width="105"><template #default="{ row }">{{ row.gender }} / {{ row.age }} 岁</template></el-table-column>
-              <el-table-column label="主要诊断" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ showValue(row.diagnosis) }}</template></el-table-column>
-              <el-table-column label="病种标签" min-width="160"><template #default="{ row }"><div class="tags"><el-tag v-for="tag in row.diseaseTags" :key="tag" size="small" effect="plain">{{ tag }}</el-tag><span v-if="!row.diseaseTags.length" class="muted">未分类</span></div></template></el-table-column>
-              <el-table-column label="管理状态" width="100"><template #default="{ row }"><el-tag :type="row.managementStatus === 'active' ? 'success' : row.managementStatus === 'pending' ? 'warning' : 'info'" size="small">{{ managementLabels[row.managementStatus as PatientManagementStatus] }}</el-tag></template></el-table-column>
-              <el-table-column prop="lastVisit" label="最近问诊" width="112" />
-              <template #empty><el-empty :description="store.patients.length ? '未找到匹配患者，请调整筛选条件' : '暂无患者，可新建患者档案'" :image-size="64" /></template>
+              <el-table-column prop="id" label="Patient ID" min-width="145" show-overflow-tooltip />
+              <el-table-column prop="name" label="Name" min-width="145" />
+              <el-table-column label="Gender / Age" width="150"><template #default="{ row }">{{ row.gender }} / {{ row.age }} years</template></el-table-column>
+              <el-table-column label="Primary Diagnosis" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ showValue(row.diagnosis) }}</template></el-table-column>
+              <el-table-column label="Condition Tags" min-width="160"><template #default="{ row }"><div class="tags"><el-tag v-for="tag in row.diseaseTags" :key="tag" size="small" effect="plain">{{ tag }}</el-tag><span v-if="!row.diseaseTags.length" class="muted">Unclassified</span></div></template></el-table-column>
+              <el-table-column label="Management Status" width="165"><template #default="{ row }"><el-tag :type="row.managementStatus === 'active' ? 'success' : row.managementStatus === 'pending' ? 'warning' : 'info'" size="small">{{ managementLabels[row.managementStatus as PatientManagementStatus] }}</el-tag></template></el-table-column>
+              <el-table-column prop="lastVisit" label="Last Consultation" width="165" />
+              <template #empty><el-empty :description="store.patients.length ? 'No matching patients. Adjust your filters.' : 'No patients yet. Create a patient profile.'" :image-size="64" /></template>
             </el-table>
-            <div class="pagination"><span class="selection-note">已选 {{ selectedIds.length }} 名（仅当前页）</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10, 20, 50]" :total="filtered.length" layout="sizes, prev, pager, next" :pager-count="5" size="small" /></div>
+            <div class="pagination"><span class="selection-note">{{ selectedIds.length }} selected (current page only)</span><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10, 20, 50]" :total="filtered.length" layout="sizes, prev, pager, next" :pager-count="5" size="small" /></div>
           </template>
         </div>
       </article>
       <article class="panel detail-panel">
-        <div class="panel-header"><div><h2 class="panel-title">患者档案</h2><p class="panel-subtitle">基础信息与医疗背景</p></div><el-button :icon="Edit3" size="small" :disabled="!canEdit || !selectedPatient || store.patientsLoading" @click="openForm(selectedPatient)">编辑档案</el-button></div>
+        <div class="panel-header"><div><h2 class="panel-title">Patient Profile</h2><p class="panel-subtitle">Basic information and medical background</p></div><el-button :icon="Edit3" size="small" :disabled="!canEdit || !selectedPatient || store.patientsLoading" @click="openForm(selectedPatient)">Edit Profile</el-button></div>
         <div v-if="selectedPatient && !store.patientsLoading" class="detail-body">
-          <div class="patient-heading"><h3>{{ selectedPatient.name }}</h3><span>{{ selectedPatient.gender }} · {{ selectedPatient.age }} 岁</span></div>
+          <div class="patient-heading"><h3>{{ selectedPatient.name }}</h3><span>{{ selectedPatient.gender }} · {{ selectedPatient.age }} years</span></div>
           <p class="patient-id">{{ selectedPatient.id }}</p>
           <el-tabs v-model="activeTab">
-            <el-tab-pane label="基础信息" name="basic"><dl class="record-detail">
-              <div><dt>联系电话</dt><dd>{{ showValue(selectedPatient.phone) }}</dd></div><div><dt>居住地址</dt><dd>{{ showValue(selectedPatient.address) }}</dd></div>
-              <div><dt>紧急联系人</dt><dd>{{ showValue(selectedPatient.emergencyName) }}<span v-if="selectedPatient.emergencyRelation">（{{ selectedPatient.emergencyRelation }}）</span></dd></div>
-              <div><dt>紧急电话</dt><dd>{{ showValue(selectedPatient.emergencyPhone) }}</dd></div>
-              <div><dt>病种标签</dt><dd class="tags"><el-tag v-for="tag in selectedPatient.diseaseTags" :key="tag" size="small" effect="plain">{{ tag }}</el-tag><span v-if="!selectedPatient.diseaseTags.length">未分类</span></dd></div>
-              <div><dt>管理状态</dt><dd>{{ managementLabels[selectedPatient.managementStatus] }}</dd></div><div><dt>责任医生</dt><dd>{{ selectedPatient.ownerDoctor }}</dd></div>
-              <div><dt>最近问诊</dt><dd>{{ selectedPatient.lastVisit }}</dd></div><div><dt>创建时间</dt><dd>{{ showTime(selectedPatient.createdAt) }}</dd></div><div><dt>更新时间</dt><dd>{{ showTime(selectedPatient.updatedAt) }}</dd></div>
+            <el-tab-pane label="Basic Information" name="basic"><dl class="record-detail">
+              <div><dt>Phone</dt><dd>{{ showValue(selectedPatient.phone) }}</dd></div><div><dt>Address</dt><dd>{{ showValue(selectedPatient.address) }}</dd></div>
+              <div><dt>Emergency Contact</dt><dd>{{ showValue(selectedPatient.emergencyName) }}<span v-if="selectedPatient.emergencyRelation"> ({{ selectedPatient.emergencyRelation }})</span></dd></div>
+              <div><dt>Emergency Phone</dt><dd>{{ showValue(selectedPatient.emergencyPhone) }}</dd></div>
+              <div><dt>Condition Tags</dt><dd class="tags"><el-tag v-for="tag in selectedPatient.diseaseTags" :key="tag" size="small" effect="plain">{{ tag }}</el-tag><span v-if="!selectedPatient.diseaseTags.length">Unclassified</span></dd></div>
+              <div><dt>Management Status</dt><dd>{{ managementLabels[selectedPatient.managementStatus] }}</dd></div><div><dt>Primary Physician</dt><dd>{{ selectedPatient.ownerDoctor }}</dd></div>
+              <div><dt>Last Consultation</dt><dd>{{ selectedPatient.lastVisit }}</dd></div><div><dt>Created</dt><dd>{{ showTime(selectedPatient.createdAt) }}</dd></div><div><dt>Updated</dt><dd>{{ showTime(selectedPatient.updatedAt) }}</dd></div>
             </dl></el-tab-pane>
-            <el-tab-pane label="医疗背景" name="medical"><dl class="record-detail">
-              <div><dt>症状描述</dt><dd>{{ showValue(selectedPatient.symptoms) }}</dd></div><div><dt>主要诊断</dt><dd>{{ showValue(selectedPatient.diagnosis) }}</dd></div>
-              <div><dt>既往病史</dt><dd>{{ showValue(selectedPatient.history) }}</dd></div><div><dt>过敏史</dt><dd>{{ allergyText(selectedPatient) }}</dd></div>
+            <el-tab-pane label="Medical Background" name="medical"><dl class="record-detail">
+              <div><dt>Symptoms</dt><dd>{{ showValue(selectedPatient.symptoms) }}</dd></div><div><dt>Primary Diagnosis</dt><dd>{{ showValue(selectedPatient.diagnosis) }}</dd></div>
+              <div><dt>Medical History</dt><dd>{{ showValue(selectedPatient.history) }}</dd></div><div><dt>Allergies</dt><dd>{{ allergyText(selectedPatient) }}</dd></div>
             </dl></el-tab-pane>
           </el-tabs>
         </div>
-        <el-empty v-else :description="store.patientsLoading ? '正在加载患者信息' : store.patientsError ? '患者档案暂不可用，请重新加载' : invalidTarget ? '患者不存在，请从列表选择患者' : filtered.length ? '请选择患者查看档案' : '暂无可显示的患者档案'" :image-size="72" />
+        <el-empty v-else :description="store.patientsLoading ? 'Loading patient information' : store.patientsError ? 'Patient profiles are unavailable. Reload to retry.' : invalidTarget ? 'Patient not found. Select a patient from the list.' : filtered.length ? 'Select a patient to view their profile' : 'No patient profile to display'" :image-size="72" />
       </article>
     </section>
     <PatientFormDialog v-model="formVisible" :patient="editingPatient" :disease-options="diseaseOptions" :saving="saving" :save-error="saveError" @save="save" />
-    <el-dialog v-model="batchVisible" title="批量调整患者分类" width="min(500px, calc(100vw - 24px))" :close-on-click-modal="false" :close-on-press-escape="!batchSaving" :show-close="!batchSaving">
+    <el-dialog v-model="batchVisible" title="Update Patient Classifications" width="min(500px, calc(100vw - 24px))" :close-on-click-modal="false" :close-on-press-escape="!batchSaving" :show-close="!batchSaving">
       <el-alert v-if="batchError" :title="batchError" type="error" :closable="false" class="batch-alert" />
       <el-form label-position="top" :disabled="batchSaving">
-        <el-form-item label="调整方式"><el-select v-model="batchKind" aria-label="调整方式"><el-option label="添加病种" value="addDisease" /><el-option label="移除病种" value="removeDisease" /><el-option label="修改管理状态" value="managementStatus" /></el-select></el-form-item>
-        <el-form-item v-if="batchKind !== 'managementStatus'" label="病种"><el-select v-model="batchTags" aria-label="批量病种" multiple filterable :allow-create="batchKind === 'addDisease'" default-first-option :reserve-keyword="false" placeholder="选择病种"><el-option v-for="tag in diseaseOptions" :key="tag" :value="tag" :label="tag" /></el-select></el-form-item>
-        <el-form-item v-else label="管理状态"><el-select v-model="batchStatus" aria-label="批量管理状态"><el-option v-for="(label, value) in managementLabels" :key="value" :value="value" :label="label" /></el-select></el-form-item>
+        <el-form-item label="Operation"><el-select v-model="batchKind" aria-label="Operation"><el-option label="Add Conditions" value="addDisease" /><el-option label="Remove Conditions" value="removeDisease" /><el-option label="Change Management Status" value="managementStatus" /></el-select></el-form-item>
+        <el-form-item v-if="batchKind !== 'managementStatus'" label="Conditions"><el-select v-model="batchTags" aria-label="Batch conditions" multiple filterable :allow-create="batchKind === 'addDisease'" default-first-option :reserve-keyword="false" placeholder="Select conditions"><el-option v-for="tag in diseaseOptions" :key="tag" :value="tag" :label="tag" /></el-select></el-form-item>
+        <el-form-item v-else label="Management Status"><el-select v-model="batchStatus" aria-label="Batch management status"><el-option v-for="(label, value) in managementLabels" :key="value" :value="value" :label="label" /></el-select></el-form-item>
       </el-form>
-      <p class="batch-summary">将对 <strong>{{ selectedIds.length }}</strong> 名患者执行：{{ batchDescription }}</p>
-      <template #footer><el-button :disabled="batchSaving" @click="batchVisible = false">取消</el-button><el-button type="primary" :loading="batchSaving" :disabled="!selectedIds.length" @click="submitBatch">确认调整</el-button></template>
+      <p class="batch-summary"><strong>{{ selectedIds.length }}</strong> patients: {{ batchDescription }}</p>
+      <template #footer><el-button :disabled="batchSaving" @click="batchVisible = false">Cancel</el-button><el-button type="primary" :loading="batchSaving" :disabled="!selectedIds.length" @click="submitBatch">Apply Changes</el-button></template>
     </el-dialog>
   </div>
 </template>
@@ -196,7 +196,7 @@ const showTime = (value: string) => new Date(value).toLocaleString('zh-CN', { ho
 .patients-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(310px, 1fr); gap: 16px; align-items: start; }
 .patient-table-panel { overflow: hidden; }
 .detail-panel { position: sticky; top: 80px; }
-.filter-bar { display: grid; grid-template-columns: minmax(180px, 1fr) 130px 140px auto; gap: 8px; margin-bottom: 14px; }
+.filter-bar { display: grid; grid-template-columns: minmax(180px, 1fr) 150px 155px auto; gap: 8px; margin-bottom: 14px; }
 .tags { display: flex; flex-wrap: wrap; gap: 5px; }
 .tags :deep(.el-tag) { max-width: 100%; height: auto; min-height: 22px; white-space: normal; overflow-wrap: anywhere; }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 15px; }
@@ -207,7 +207,7 @@ const showTime = (value: string) => new Date(value).toLocaleString('zh-CN', { ho
 .patient-heading span, .patient-id { color: var(--muted); font-size: 12px; }
 .patient-id { margin: 8px 0 14px; overflow-wrap: anywhere; }
 .record-detail { margin: 0; }
-.record-detail > div { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.record-detail > div { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .record-detail dt { color: var(--muted); font-size: 12px; }
 .record-detail dd { margin: 0; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; white-space: pre-wrap; }
 .load-error { padding: 30px 12px; text-align: center; color: var(--red); }

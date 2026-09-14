@@ -18,8 +18,8 @@ const selectedPatientId = shallowRef(clinicalStore.patients.some((item) => item.
 const reminderDialogVisible = shallowRef(false)
 const assessmentDialogVisible = shallowRef(false)
 const planForm = reactive({ goals: '', measures: '', reviewCycle: '' })
-const reminderForm = reactive<{ type: ReminderTask['type']; content: string; dueAt: string }>({ type: '监测', content: '', dueAt: '2026-09-13 08:00' })
-const assessmentForm = reactive<{ level: HealthAssessment['level']; summary: string; advice: string }>({ level: '中风险', summary: '', advice: '' })
+const reminderForm = reactive<{ type: ReminderTask['type']; content: string; dueAt: string }>({ type: 'Monitoring', content: '', dueAt: '2026-09-13 08:00' })
+const assessmentForm = reactive<{ level: HealthAssessment['level']; summary: string; advice: string }>({ level: 'Moderate Risk', summary: '', advice: '' })
 
 const actor = computed(() => ({ name: authStore.profile.name, role: authStore.roleLabel, department: authStore.profile.department }))
 const canEdit = computed(() => authStore.currentRole !== 'admin')
@@ -49,34 +49,34 @@ watch(() => route.query.patient, (value) => {
 function savePlan() {
   if (!canEdit.value) return
   clinicalStore.saveHealthPlan(selectedPatientId.value, { ...planForm }, actor.value)
-  ElMessage.success('健康管理计划已保存')
+  ElMessage.success('Health management plan saved.')
 }
 
 function addReminder() {
   if (!reminderForm.content.trim() || !reminderForm.dueAt.trim()) {
-    ElMessage.warning('请填写提醒内容和执行时间')
+    ElMessage.warning('Enter reminder details and a scheduled time.')
     return
   }
   clinicalStore.addReminder({ patientId: selectedPatientId.value, ...reminderForm, content: reminderForm.content.trim() }, actor.value)
   reminderDialogVisible.value = false
   reminderForm.content = ''
-  ElMessage.success('提醒任务已创建并进入待推送队列')
+  ElMessage.success('Reminder created and queued for delivery.')
 }
 
 function completeReminder(id: string) {
   clinicalStore.completeReminder(id, actor.value)
-  ElMessage.success('提醒任务已标记完成')
+  ElMessage.success('Reminder marked complete.')
 }
 
 function addAssessment() {
   if (!assessmentForm.summary.trim() || !assessmentForm.advice.trim()) {
-    ElMessage.warning('请填写评估摘要和调整建议')
+    ElMessage.warning('Enter an assessment summary and recommended changes.')
     return
   }
   clinicalStore.addAssessment({ patientId: selectedPatientId.value, ...assessmentForm }, actor.value)
   assessmentDialogVisible.value = false
-  Object.assign(assessmentForm, { level: '中风险', summary: '', advice: '' })
-  ElMessage.success('健康评估已保存')
+  Object.assign(assessmentForm, { level: 'Moderate Risk', summary: '', advice: '' })
+  ElMessage.success('Health assessment saved.')
 }
 
 syncPlan()
@@ -84,16 +84,16 @@ syncPlan()
 
 <template>
   <div class="view-stack">
-    <PageHeader title="健康管理" description="查看居家健康数据，制定管理计划并安排用药、监测和复诊提醒">
-      <el-button :icon="CalendarPlus" :disabled="!canEdit" @click="reminderDialogVisible = true">新增提醒</el-button>
-      <el-button :icon="ClipboardCheck" type="primary" :disabled="!canEdit" @click="assessmentDialogVisible = true">健康评估</el-button>
+    <PageHeader title="Health Management" description="Review home health data, create care plans, and schedule medication, monitoring, and follow-up reminders">
+      <el-button :icon="CalendarPlus" :disabled="!canEdit" @click="reminderDialogVisible = true">Add Reminder</el-button>
+      <el-button :icon="ClipboardCheck" type="primary" :disabled="!canEdit" @click="assessmentDialogVisible = true">Health Assessment</el-button>
     </PageHeader>
 
-    <p v-if="!canEdit" class="permission-note">管理员可查看健康管理记录，但不能修改患者计划或评估结论。</p>
+    <p v-if="!canEdit" class="permission-note">Administrators can view health management records but cannot edit patient plans or assessment conclusions.</p>
 
     <section class="health-layout">
       <article class="panel patient-list-panel">
-        <div class="panel-header"><div><h2 class="panel-title">管理患者</h2><p class="panel-subtitle">选择患者查看健康计划</p></div></div>
+        <div class="panel-header"><div><h2 class="panel-title">Managed Patients</h2><p class="panel-subtitle">Select a patient to view the care plan</p></div></div>
         <div class="patient-list">
           <button v-for="patient in clinicalStore.patients" :key="patient.id" type="button" :class="{ active: patient.id === selectedPatientId }" @click="selectPatient(patient.id)">
             <span>{{ patient.name.slice(-1) }}</span><div><strong>{{ patient.name }}</strong><small>{{ patient.diagnosis }}</small></div><StatusBadge :status="patient.status" type="patient" />
@@ -103,45 +103,45 @@ syncPlan()
 
       <div class="health-main">
         <section class="patient-summary-strip">
-          <div><span>当前患者</span><strong>{{ selectedPatient.name }}</strong><small>{{ selectedPatient.age }} 岁 · {{ selectedPatient.group }}</small></div>
-          <div><span>血压</span><strong>{{ selectedPatient.metrics.bloodPressure }}</strong><small>mmHg</small></div>
-          <div><span>血糖</span><strong>{{ selectedPatient.metrics.glucose }}</strong><small>mmol/L</small></div>
-          <div><span>心率</span><strong>{{ selectedPatient.metrics.heartRate || '--' }}</strong><small>次/分</small></div>
+          <div><span>Current Patient</span><strong>{{ selectedPatient.name }}</strong><small>{{ selectedPatient.age }} years · {{ selectedPatient.group }}</small></div>
+          <div><span>Blood Pressure</span><strong>{{ selectedPatient.metrics.bloodPressure }}</strong><small>mmHg</small></div>
+          <div><span>Blood Glucose</span><strong>{{ selectedPatient.metrics.glucose }}</strong><small>mmol/L</small></div>
+          <div><span>Heart Rate</span><strong>{{ selectedPatient.metrics.heartRate || '--' }}</strong><small>bpm</small></div>
         </section>
 
         <section class="health-grid">
-          <article class="panel trend-panel"><div class="panel-header"><div><h2 class="panel-title">健康数据趋势</h2><p class="panel-subtitle">最近七天居家监测记录</p></div></div><div class="panel-body"><VitalTrendChart :patient="selectedPatient" /></div></article>
+          <article class="panel trend-panel"><div class="panel-header"><div><h2 class="panel-title">Health Trends</h2><p class="panel-subtitle">Home monitoring records from the past seven days</p></div></div><div class="panel-body"><VitalTrendChart :patient="selectedPatient" /></div></article>
           <article class="panel plan-panel">
-            <div class="panel-header"><div><h2 class="panel-title">健康管理计划</h2><p class="panel-subtitle">最近更新 {{ selectedPlan.updatedAt }}</p></div></div>
-            <div class="panel-body"><el-form label-position="top"><el-form-item label="管理目标"><el-input v-model="planForm.goals" type="textarea" :rows="2" resize="none" :disabled="!canEdit" /></el-form-item><el-form-item label="管理措施"><el-input v-model="planForm.measures" type="textarea" :rows="4" resize="none" :disabled="!canEdit" /></el-form-item><el-form-item label="评估周期"><el-select v-model="planForm.reviewCycle" :disabled="!canEdit"><el-option v-for="cycle in ['每周评估', '每两周评估', '每月评估']" :key="cycle" :label="cycle" :value="cycle" /></el-select></el-form-item><el-button :icon="Save" type="primary" :disabled="!canEdit" @click="savePlan">保存计划</el-button></el-form></div>
+            <div class="panel-header"><div><h2 class="panel-title">Health Management Plan</h2><p class="panel-subtitle">Last updated {{ selectedPlan.updatedAt }}</p></div></div>
+            <div class="panel-body"><el-form label-position="top"><el-form-item label="Goals"><el-input v-model="planForm.goals" type="textarea" :rows="2" resize="none" :disabled="!canEdit" /></el-form-item><el-form-item label="Interventions"><el-input v-model="planForm.measures" type="textarea" :rows="4" resize="none" :disabled="!canEdit" /></el-form-item><el-form-item label="Review Cycle"><el-select v-model="planForm.reviewCycle" :disabled="!canEdit"><el-option v-for="cycle in ['Weekly', 'Every Two Weeks', 'Monthly']" :key="cycle" :label="cycle" :value="cycle" /></el-select></el-form-item><el-button :icon="Save" type="primary" :disabled="!canEdit" @click="savePlan">Save Plan</el-button></el-form></div>
           </article>
         </section>
 
         <section class="health-grid lower-grid">
           <article class="panel reminders-panel">
-            <div class="panel-header"><div><h2 class="panel-title">提醒任务</h2><p class="panel-subtitle">系统按计划向患者端推送提醒</p></div><el-button :icon="Plus" link type="primary" :disabled="!canEdit" @click="reminderDialogVisible = true">新增</el-button></div>
+            <div class="panel-header"><div><h2 class="panel-title">Reminder Tasks</h2><p class="panel-subtitle">Reminders are sent to the patient app on schedule</p></div><el-button :icon="Plus" link type="primary" :disabled="!canEdit" @click="reminderDialogVisible = true">Add</el-button></div>
             <div class="reminder-list">
               <div v-for="reminder in patientReminders" :key="reminder.id" :class="{ completed: reminder.status === 'completed' }">
-                <el-tag size="small" effect="plain">{{ reminder.type }}</el-tag><div><strong>{{ reminder.content }}</strong><span>{{ reminder.dueAt }}</span></div><el-button v-if="reminder.status === 'pending'" :icon="CheckCircle2" link type="primary" :disabled="!canEdit" @click="completeReminder(reminder.id)">完成</el-button><span v-else class="done-label">已完成</span>
+                <el-tag size="small" effect="plain">{{ reminder.type }}</el-tag><div><strong>{{ reminder.content }}</strong><span>{{ reminder.dueAt }}</span></div><el-button v-if="reminder.status === 'pending'" :icon="CheckCircle2" link type="primary" :disabled="!canEdit" @click="completeReminder(reminder.id)">Complete</el-button><span v-else class="done-label">Completed</span>
               </div>
-              <p v-if="!patientReminders.length" class="empty-text">暂无提醒任务</p>
+              <p v-if="!patientReminders.length" class="empty-text">No reminder tasks</p>
             </div>
           </article>
 
           <article class="panel assessment-panel">
-            <div class="panel-header"><div><h2 class="panel-title">定期评估</h2><p class="panel-subtitle">记录风险变化和建议调整</p></div><el-button :icon="Plus" link type="primary" :disabled="!canEdit" @click="assessmentDialogVisible = true">新增</el-button></div>
+            <div class="panel-header"><div><h2 class="panel-title">Periodic Assessments</h2><p class="panel-subtitle">Track risk changes and recommended adjustments</p></div><el-button :icon="Plus" link type="primary" :disabled="!canEdit" @click="assessmentDialogVisible = true">Add</el-button></div>
             <div class="assessment-list">
-              <div v-for="assessment in patientAssessments" :key="assessment.id"><div><strong>{{ assessment.date }}</strong><el-tag :type="assessment.level === '高风险' ? 'danger' : assessment.level === '中风险' ? 'warning' : 'success'" size="small" effect="plain">{{ assessment.level }}</el-tag></div><p>{{ assessment.summary }}</p><span>{{ assessment.advice }}</span></div>
-              <p v-if="!patientAssessments.length" class="empty-text">暂无健康评估</p>
+              <div v-for="assessment in patientAssessments" :key="assessment.id"><div><strong>{{ assessment.date }}</strong><el-tag :type="assessment.level === 'High Risk' ? 'danger' : assessment.level === 'Moderate Risk' ? 'warning' : 'success'" size="small" effect="plain">{{ assessment.level }}</el-tag></div><p>{{ assessment.summary }}</p><span>{{ assessment.advice }}</span></div>
+              <p v-if="!patientAssessments.length" class="empty-text">No health assessments</p>
             </div>
           </article>
         </section>
       </div>
     </section>
 
-    <el-dialog v-model="reminderDialogVisible" title="新增健康提醒" width="500px"><el-form label-position="top"><el-form-item label="提醒类型"><el-select v-model="reminderForm.type"><el-option label="用药" value="用药" /><el-option label="复诊" value="复诊" /><el-option label="监测" value="监测" /></el-select></el-form-item><el-form-item label="提醒内容"><el-input v-model="reminderForm.content" /></el-form-item><el-form-item label="执行时间"><el-input v-model="reminderForm.dueAt" /></el-form-item></el-form><template #footer><el-button @click="reminderDialogVisible = false">取消</el-button><el-button type="primary" @click="addReminder">创建提醒</el-button></template></el-dialog>
+    <el-dialog v-model="reminderDialogVisible" title="Add Health Reminder" width="500px"><el-form label-position="top"><el-form-item label="Reminder Type"><el-select v-model="reminderForm.type"><el-option label="Medication" value="Medication" /><el-option label="Follow-up" value="Follow-up" /><el-option label="Monitoring" value="Monitoring" /></el-select></el-form-item><el-form-item label="Reminder Details"><el-input v-model="reminderForm.content" /></el-form-item><el-form-item label="Scheduled Time"><el-input v-model="reminderForm.dueAt" /></el-form-item></el-form><template #footer><el-button @click="reminderDialogVisible = false">Cancel</el-button><el-button type="primary" @click="addReminder">Create Reminder</el-button></template></el-dialog>
 
-    <el-dialog v-model="assessmentDialogVisible" title="新增健康评估" width="560px"><el-form label-position="top"><el-form-item label="风险等级"><el-select v-model="assessmentForm.level"><el-option label="低风险" value="低风险" /><el-option label="中风险" value="中风险" /><el-option label="高风险" value="高风险" /></el-select></el-form-item><el-form-item label="评估摘要"><el-input v-model="assessmentForm.summary" type="textarea" :rows="3" /></el-form-item><el-form-item label="调整建议"><el-input v-model="assessmentForm.advice" type="textarea" :rows="3" /></el-form-item></el-form><template #footer><el-button @click="assessmentDialogVisible = false">取消</el-button><el-button type="primary" @click="addAssessment">保存评估</el-button></template></el-dialog>
+    <el-dialog v-model="assessmentDialogVisible" title="Add Health Assessment" width="560px"><el-form label-position="top"><el-form-item label="Risk Level"><el-select v-model="assessmentForm.level"><el-option label="Low Risk" value="Low Risk" /><el-option label="Moderate Risk" value="Moderate Risk" /><el-option label="High Risk" value="High Risk" /></el-select></el-form-item><el-form-item label="Assessment Summary"><el-input v-model="assessmentForm.summary" type="textarea" :rows="3" /></el-form-item><el-form-item label="Recommended Changes"><el-input v-model="assessmentForm.advice" type="textarea" :rows="3" /></el-form-item></el-form><template #footer><el-button @click="assessmentDialogVisible = false">Cancel</el-button><el-button type="primary" @click="addAssessment">Save Assessment</el-button></template></el-dialog>
   </div>
 </template>
 

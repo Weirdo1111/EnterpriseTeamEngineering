@@ -7,7 +7,7 @@ export type AllergyStatus = 'unknown' | 'none' | 'known'
 
 export interface PatientInput {
   name: string
-  gender: '男' | '女'
+  gender: 'Male' | 'Female'
   age: number
   phone: string
   address: string
@@ -71,7 +71,7 @@ export interface ConsultationSession {
 
 export interface MedicalOrder {
   id: string
-  type: '药物' | '检查' | '检验' | '护理'
+  type: 'Medication' | 'Examination' | 'Laboratory' | 'Nursing'
   content: string
   status: 'active' | 'stopped'
 }
@@ -100,13 +100,13 @@ export interface AuditLog {
   resource: string
   ip: string
   time: string
-  result: '成功' | '拦截' | '待复核'
+  result: 'Success' | 'Blocked' | 'Pending Review'
 }
 
 export interface RagReference {
   id: string
   title: string
-  kind: '临床指南' | '药品说明' | '脱敏病例'
+  kind: 'Clinical Guideline' | 'Medication Information' | 'De-identified Case'
   excerpt: string
 }
 
@@ -136,7 +136,7 @@ export interface HealthPlan {
 export interface ReminderTask {
   id: string
   patientId: string
-  type: '用药' | '复诊' | '监测'
+  type: 'Medication' | 'Follow-up' | 'Monitoring'
   content: string
   dueAt: string
   status: 'pending' | 'completed'
@@ -146,7 +146,7 @@ export interface HealthAssessment {
   id: string
   patientId: string
   date: string
-  level: '低风险' | '中风险' | '高风险'
+  level: 'Low Risk' | 'Moderate Risk' | 'High Risk'
   summary: string
   advice: string
 }

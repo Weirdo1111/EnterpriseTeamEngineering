@@ -24,49 +24,49 @@ const router = createRouter({
           path: '',
           name: 'dashboard',
           component: () => import('@/views/DashboardView.vue'),
-          meta: { title: '医生工作台' },
+          meta: { title: 'Doctor Dashboard' },
         },
         {
           path: 'patients',
           name: 'patients',
           component: () => import('@/views/PatientsView.vue'),
-          meta: { title: '患者信息管理' },
+          meta: { title: 'Patient Information Management' },
         },
         {
           path: 'consultation',
           name: 'consultation',
           component: () => import('@/views/ConsultationView.vue'),
-          meta: { title: '图文问诊' },
+          meta: { title: 'Online Consultation' },
         },
         {
           path: 'records',
           name: 'records',
           component: () => import('@/views/RecordsView.vue'),
-          meta: { title: '电子病历' },
+          meta: { title: 'Medical Records' },
         },
         {
           path: 'ai-assistant',
           name: 'ai-assistant',
           component: () => import('@/views/AiAssistantView.vue'),
-          meta: { title: '智能辅助' },
+          meta: { title: 'AI Assistant' },
         },
         {
           path: 'remote-consultations',
           name: 'remote-consultations',
           component: () => import('@/views/RemoteConsultationsView.vue'),
-          meta: { title: '远程会诊' },
+          meta: { title: 'Remote Consultation' },
         },
         {
           path: 'health-management',
           name: 'health-management',
           component: () => import('@/views/HealthManagementView.vue'),
-          meta: { title: '健康管理' },
+          meta: { title: 'Health Management' },
         },
         {
           path: 'audit',
           name: 'audit',
           component: () => import('@/views/AuditView.vue'),
-          meta: { title: '操作记录' },
+          meta: { title: 'Audit Log' },
         },
       ],
     },
@@ -95,7 +95,7 @@ router.beforeEach(async (to) => {
 
   const roles = to.meta.roles as string[] | undefined
   if (roles && !roles.includes(authStore.currentRole)) {
-    ElMessage.warning('当前身份没有访问该页面的权限，系统已记录本次拦截')
+    ElMessage.warning('Your current role cannot access this page. The blocked attempt has been logged.')
     return { name: 'dashboard' }
   }
 })

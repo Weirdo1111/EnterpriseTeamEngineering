@@ -17,9 +17,9 @@ const label = computed(() => {
 })
 
 const tone = computed(() => {
-  if (['stable', 'approved', 'archived', '成功'].includes(props.status)) return 'success'
-  if (['warning', 'pending', '待复核'].includes(props.status)) return 'warning'
-  if (['critical', 'returned', '拦截'].includes(props.status)) return 'danger'
+  if (['stable', 'approved', 'archived', 'Success'].includes(props.status)) return 'success'
+  if (['warning', 'pending', 'Pending Review'].includes(props.status)) return 'warning'
+  if (['critical', 'returned', 'Blocked'].includes(props.status)) return 'danger'
   return 'info'
 })
 </script>

@@ -1,12 +1,12 @@
 import type { Patient, PatientInput, PatientManagementStatus } from '@/types/clinical'
 
-export const managementLabels: Record<PatientManagementStatus, string> = { pending: '待建档', active: '管理中', closed: '已结束' }
-export const defaultDiseaseTags = ['高血压', '糖尿病', '冠心病', '慢阻肺', '骨质疏松']
+export const managementLabels: Record<PatientManagementStatus, string> = { pending: 'Pending Intake', active: 'Active', closed: 'Closed' }
+export const defaultDiseaseTags = ['Hypertension', 'Diabetes', 'Coronary Heart Disease', 'COPD', 'Osteoporosis']
 export const cleanTags = (tags: string[]) => [...new Set(tags.map(tag => tag.trim()).filter(Boolean))]
 export const isPhone = (value: string) => /^\+?[\d\s()（）-]{6,24}$/.test(value) && value.replace(/\D/g, '').length >= 6
 
 export function emptyPatientInput(): PatientInput {
-  return { name: '', gender: '男', age: 65, phone: '', address: '', emergencyName: '', emergencyRelation: '', emergencyPhone: '', symptoms: '', diagnosis: '', history: '', allergyStatus: 'unknown', allergies: [], diseaseTags: [], managementStatus: 'pending' }
+  return { name: '', gender: 'Male', age: 65, phone: '', address: '', emergencyName: '', emergencyRelation: '', emergencyPhone: '', symptoms: '', diagnosis: '', history: '', allergyStatus: 'unknown', allergies: [], diseaseTags: [], managementStatus: 'pending' }
 }
 
 // Whitelist the editable fields. Never spread a request over a shared clinical record.
@@ -23,17 +23,17 @@ export function toPatientInput(value: PatientInput): PatientInput {
 
 export function validatePatient(input: PatientInput): Partial<Record<keyof PatientInput, string>> {
   const errors: Partial<Record<keyof PatientInput, string>> = {}
-  if (!input.name.trim()) errors.name = '请填写患者姓名'
-  if (!['男', '女'].includes(input.gender)) errors.gender = '请选择性别'
-  if (!Number.isInteger(input.age) || input.age < 1 || input.age > 120) errors.age = '年龄须为 1–120 的整数'
-  if (input.phone.trim() && !isPhone(input.phone.trim())) errors.phone = '请输入有效联系电话'
+  if (!input.name.trim()) errors.name = 'Enter the patient name.'
+  if (!['Male', 'Female'].includes(input.gender)) errors.gender = 'Select a gender.'
+  if (!Number.isInteger(input.age) || input.age < 1 || input.age > 120) errors.age = 'Age must be a whole number from 1 to 120.'
+  if (input.phone.trim() && !isPhone(input.phone.trim())) errors.phone = 'Enter a valid phone number.'
   if (input.emergencyName.trim() || input.emergencyRelation.trim() || input.emergencyPhone.trim()) {
-    if (!input.emergencyName.trim()) errors.emergencyName = '请填写紧急联系人姓名'
-    if (!isPhone(input.emergencyPhone.trim())) errors.emergencyPhone = '请填写有效的紧急联系电话'
+    if (!input.emergencyName.trim()) errors.emergencyName = 'Enter the emergency contact name.'
+    if (!isPhone(input.emergencyPhone.trim())) errors.emergencyPhone = 'Enter a valid emergency phone number.'
   }
-  if (!['unknown', 'none', 'known'].includes(input.allergyStatus)) errors.allergyStatus = '请选择过敏史状态'
-  if (input.allergyStatus === 'known' && !cleanTags(input.allergies).length) errors.allergies = '请至少填写一项过敏项'
-  if (!Object.prototype.hasOwnProperty.call(managementLabels, input.managementStatus)) errors.managementStatus = '请选择管理状态'
+  if (!['unknown', 'none', 'known'].includes(input.allergyStatus)) errors.allergyStatus = 'Select an allergy status.'
+  if (input.allergyStatus === 'known' && !cleanTags(input.allergies).length) errors.allergies = 'Enter at least one allergen.'
+  if (!Object.prototype.hasOwnProperty.call(managementLabels, input.managementStatus)) errors.managementStatus = 'Select a management status.'
   return errors
 }
 
@@ -47,5 +47,5 @@ export function filterPatients(patients: Patient[], filters: PatientFilters): Pa
 }
 
 export function allergyText(patient: PatientInput) {
-  return patient.allergyStatus === 'unknown' ? '未确认' : patient.allergyStatus === 'none' ? '无已知过敏' : patient.allergies.join('、')
+  return patient.allergyStatus === 'unknown' ? 'Unconfirmed' : patient.allergyStatus === 'none' ? 'No known allergies' : patient.allergies.join(', ')
 }

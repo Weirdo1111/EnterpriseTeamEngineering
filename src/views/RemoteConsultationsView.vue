@@ -15,8 +15,8 @@ const selectedId = shallowRef(clinicalStore.remoteConsultations[0]!.id)
 const statusFilter = shallowRef('')
 const newDialogVisible = shallowRef(false)
 const expertDialogVisible = shallowRef(false)
-const expertName = shallowRef('钱维 副主任医师')
-const newForm = reactive({ patientId: clinicalStore.patients[0]!.id, specialty: '心血管内科', reason: '', scheduledAt: '2026-09-13 14:00' })
+const expertName = shallowRef('Dr. Vivian Qian, Associate Chief Physician')
+const newForm = reactive({ patientId: clinicalStore.patients[0]!.id, specialty: 'Cardiology', reason: '', scheduledAt: '2026-09-13 14:00' })
 
 const actor = computed(() => ({ name: authStore.profile.name, role: authStore.roleLabel, department: authStore.profile.department }))
 const canOperate = computed(() => authStore.currentRole !== 'admin')
@@ -32,7 +32,7 @@ function statusType(status: RemoteConsultationStatus) {
 
 function createConsultation() {
   if (!newForm.reason.trim()) {
-    ElMessage.warning('请填写会诊原因')
+    ElMessage.warning('Enter a reason for the consultation.')
     return
   }
   const item = clinicalStore.createRemoteConsultation({ ...newForm, reason: newForm.reason.trim() }, actor.value)
@@ -40,53 +40,53 @@ function createConsultation() {
   selectedId.value = item.id
   newDialogVisible.value = false
   newForm.reason = ''
-  ElMessage.success('远程会诊申请已提交')
+  ElMessage.success('Remote consultation request submitted.')
 }
 
 function updateStatus(status: RemoteConsultationStatus) {
   clinicalStore.updateRemoteStatus(selected.value.id, status, actor.value)
-  ElMessage.success(status === 'accepted' ? '会诊申请已接收' : '远程会诊已开始')
+  ElMessage.success(status === 'accepted' ? 'Consultation request accepted.' : 'Remote consultation started.')
 }
 
 function addExpert() {
   if (!expertName.value.trim()) return
   clinicalStore.addRemoteExpert(selected.value.id, expertName.value.trim(), actor.value)
   expertDialogVisible.value = false
-  ElMessage.success('会诊专家已添加')
+  ElMessage.success('Consultation specialist added.')
 }
 
 function completeConsultation() {
   if (!selected.value.opinion.trim()) {
-    ElMessage.warning('请先填写会诊意见')
+    ElMessage.warning('Enter the consultation opinion first.')
     return
   }
   clinicalStore.completeRemoteConsultation(selected.value.id, selected.value.opinion.trim(), actor.value)
-  ElMessage.success('会诊已完成并生成报告')
+  ElMessage.success('Consultation completed and report generated.')
 }
 
 function exportReport() {
   if (!selected.value.report) {
-    ElMessage.warning('完成会诊后才能导出报告')
+    ElMessage.warning('Complete the consultation before exporting the report.')
     return
   }
-  downloadText(`${selected.value.patientName}-${selected.value.id}-会诊报告.txt`, selected.value.report)
-  ElMessage.success('会诊报告已导出')
+  downloadText(`${selected.value.patientName}-${selected.value.id}-Consultation-Report.txt`, selected.value.report)
+  ElMessage.success('Consultation report exported.')
 }
 </script>
 
 <template>
   <div class="view-stack">
-    <PageHeader title="远程会诊" description="发起或接收专科会诊，共享患者资料并记录多学科会诊意见">
-      <el-button :icon="Plus" type="primary" :disabled="!canOperate" @click="newDialogVisible = true">发起会诊</el-button>
-      <el-button :icon="Download" @click="exportReport">导出报告</el-button>
+    <PageHeader title="Remote Consultation" description="Request or accept specialist consultations, share patient information, and record multidisciplinary opinions">
+      <el-button :icon="Plus" type="primary" :disabled="!canOperate" @click="newDialogVisible = true">Request Consultation</el-button>
+      <el-button :icon="Download" @click="exportReport">Export Report</el-button>
     </PageHeader>
 
-    <p v-if="!canOperate" class="permission-note">管理员可查看会诊记录和审计信息，但不能参与诊疗操作。</p>
+    <p v-if="!canOperate" class="permission-note">Administrators can view consultation and audit records but cannot perform clinical actions.</p>
 
     <section class="remote-layout">
       <article class="panel request-panel">
-        <div class="panel-header"><div><h2 class="panel-title">会诊申请</h2><p class="panel-subtitle">共 {{ filteredItems.length }} 条记录</p></div></div>
-        <div class="status-filter"><el-select v-model="statusFilter" clearable placeholder="全部状态"><el-option v-for="(label, key) in remoteStatusLabel" :key="key" :label="label" :value="key" /></el-select></div>
+        <div class="panel-header"><div><h2 class="panel-title">Consultation Requests</h2><p class="panel-subtitle">{{ filteredItems.length }} records</p></div></div>
+        <div class="status-filter"><el-select v-model="statusFilter" clearable placeholder="All Statuses"><el-option v-for="(label, key) in remoteStatusLabel" :key="key" :label="label" :value="key" /></el-select></div>
         <div class="request-list">
           <button v-for="item in filteredItems" :key="item.id" type="button" :class="{ active: item.id === selected.id }" @click="selectedId = item.id">
             <div><strong>{{ item.patientName }}</strong><el-tag :type="statusType(item.status)" size="small" effect="plain">{{ remoteStatusLabel[item.status] }}</el-tag></div>
@@ -98,57 +98,57 @@ function exportReport() {
 
       <article class="panel detail-panel">
         <div class="panel-header detail-header">
-          <div><h2 class="panel-title">{{ selected.patientName }} · {{ selected.specialty }}</h2><p class="panel-subtitle">{{ selected.id }} · 申请医生 {{ selected.requester }}</p></div>
+          <div><h2 class="panel-title">{{ selected.patientName }} · {{ selected.specialty }}</h2><p class="panel-subtitle">{{ selected.id }} · Requesting Physician {{ selected.requester }}</p></div>
           <el-tag :type="statusType(selected.status)" effect="plain">{{ remoteStatusLabel[selected.status] }}</el-tag>
         </div>
 
         <div class="detail-body">
           <section class="case-summary">
-            <h3>会诊原因</h3><p>{{ selected.reason }}</p>
-            <dl><div><dt>计划时间</dt><dd>{{ selected.scheduledAt }}</dd></div><div><dt>患者编号</dt><dd>{{ selected.patientId }}</dd></div></dl>
+            <h3>Reason for Consultation</h3><p>{{ selected.reason }}</p>
+            <dl><div><dt>Scheduled Time</dt><dd>{{ selected.scheduledAt }}</dd></div><div><dt>Patient ID</dt><dd>{{ selected.patientId }}</dd></div></dl>
           </section>
 
           <section class="workflow-strip">
-            <div :class="{ done: true }"><span>1</span><strong>提交申请</strong></div>
-            <div :class="{ done: selected.status !== 'pending' }"><span>2</span><strong>专家接收</strong></div>
-            <div :class="{ done: ['inProgress', 'completed'].includes(selected.status) }"><span>3</span><strong>开展会诊</strong></div>
-            <div :class="{ done: selected.status === 'completed' }"><span>4</span><strong>形成报告</strong></div>
+            <div :class="{ done: true }"><span>1</span><strong>Submit Request</strong></div>
+            <div :class="{ done: selected.status !== 'pending' }"><span>2</span><strong>Specialist Accepts</strong></div>
+            <div :class="{ done: ['inProgress', 'completed'].includes(selected.status) }"><span>3</span><strong>Conduct Consultation</strong></div>
+            <div :class="{ done: selected.status === 'completed' }"><span>4</span><strong>Create Report</strong></div>
           </section>
 
           <div class="detail-grid">
             <section class="info-section">
-              <div class="section-heading"><h3>患者资料</h3><FileText :size="17" /></div>
-              <ul class="material-list"><li v-for="material in selected.materials" :key="material"><span>{{ material }}</span><el-button link type="primary" @click="ElMessage.info('正在预览演示资料：' + material)">查看</el-button></li></ul>
+              <div class="section-heading"><h3>Patient Documents</h3><FileText :size="17" /></div>
+              <ul class="material-list"><li v-for="material in selected.materials" :key="material"><span>{{ material }}</span><el-button link type="primary" @click="ElMessage.info('Previewing demo document: ' + material)">View</el-button></li></ul>
             </section>
             <section class="info-section">
-              <div class="section-heading"><h3>参加专家</h3><el-button :icon="UserPlus" link type="primary" :disabled="!canOperate || selected.status === 'completed'" @click="expertDialogVisible = true">添加</el-button></div>
-              <ul class="expert-list"><li v-for="expert in selected.experts" :key="expert"><span class="expert-avatar">{{ expert.slice(0, 1) }}</span>{{ expert }}</li><li v-if="!selected.experts.length" class="muted">尚未添加专家</li></ul>
+              <div class="section-heading"><h3>Participating Specialists</h3><el-button :icon="UserPlus" link type="primary" :disabled="!canOperate || selected.status === 'completed'" @click="expertDialogVisible = true">Add</el-button></div>
+              <ul class="expert-list"><li v-for="expert in selected.experts" :key="expert"><span class="expert-avatar">{{ expert.slice(0, 1) }}</span>{{ expert }}</li><li v-if="!selected.experts.length" class="muted">No specialists added</li></ul>
             </section>
           </div>
 
           <section class="opinion-section">
-            <div class="section-heading"><h3>会诊意见</h3><span>完成后自动整理为会诊报告</span></div>
-            <el-input v-model="selected.opinion" type="textarea" :rows="5" resize="none" :disabled="!canOperate || selected.status === 'completed'" placeholder="记录专家讨论结论和后续安排" />
+            <div class="section-heading"><h3>Consultation Opinion</h3><span>A report is generated automatically when completed</span></div>
+            <el-input v-model="selected.opinion" type="textarea" :rows="5" resize="none" :disabled="!canOperate || selected.status === 'completed'" placeholder="Record the specialist conclusions and follow-up plan" />
           </section>
 
-          <section v-if="selected.report" class="report-section"><h3>会诊报告</h3><pre>{{ selected.report }}</pre></section>
+          <section v-if="selected.report" class="report-section"><h3>Consultation Report</h3><pre>{{ selected.report }}</pre></section>
 
           <div class="detail-actions">
-            <el-button v-if="selected.status === 'pending'" :disabled="!canOperate" @click="updateStatus('accepted')">接收申请</el-button>
-            <el-button v-if="selected.status === 'accepted'" :icon="Play" type="primary" :disabled="!canOperate" @click="updateStatus('inProgress')">开始会诊</el-button>
-            <el-button v-if="selected.status === 'inProgress'" :icon="Video" type="primary" :disabled="!canOperate" @click="completeConsultation">完成并生成报告</el-button>
-            <el-button v-if="selected.status === 'completed'" :icon="Download" type="primary" @click="exportReport">导出会诊报告</el-button>
+            <el-button v-if="selected.status === 'pending'" :disabled="!canOperate" @click="updateStatus('accepted')">Accept Request</el-button>
+            <el-button v-if="selected.status === 'accepted'" :icon="Play" type="primary" :disabled="!canOperate" @click="updateStatus('inProgress')">Start Consultation</el-button>
+            <el-button v-if="selected.status === 'inProgress'" :icon="Video" type="primary" :disabled="!canOperate" @click="completeConsultation">Complete and Generate Report</el-button>
+            <el-button v-if="selected.status === 'completed'" :icon="Download" type="primary" @click="exportReport">Export Report</el-button>
           </div>
         </div>
       </article>
     </section>
 
-    <el-dialog v-model="newDialogVisible" title="发起远程会诊" width="560px">
-      <el-form label-position="top"><el-form-item label="患者"><el-select v-model="newForm.patientId"><el-option v-for="patient in clinicalStore.patients" :key="patient.id" :label="`${patient.name} · ${patient.diagnosis}`" :value="patient.id" /></el-select></el-form-item><div class="form-grid"><el-form-item label="会诊专科"><el-input v-model="newForm.specialty" /></el-form-item><el-form-item label="计划时间"><el-input v-model="newForm.scheduledAt" /></el-form-item></div><el-form-item label="会诊原因"><el-input v-model="newForm.reason" type="textarea" :rows="4" /></el-form-item></el-form>
-      <template #footer><el-button @click="newDialogVisible = false">取消</el-button><el-button type="primary" @click="createConsultation">提交申请</el-button></template>
+    <el-dialog v-model="newDialogVisible" title="Start Remote Consultation" width="560px">
+      <el-form label-position="top"><el-form-item label="Patient"><el-select v-model="newForm.patientId"><el-option v-for="patient in clinicalStore.patients" :key="patient.id" :label="`${patient.name} · ${patient.diagnosis}`" :value="patient.id" /></el-select></el-form-item><div class="form-grid"><el-form-item label="Specialty"><el-input v-model="newForm.specialty" /></el-form-item><el-form-item label="Scheduled Time"><el-input v-model="newForm.scheduledAt" /></el-form-item></div><el-form-item label="Reason for Consultation"><el-input v-model="newForm.reason" type="textarea" :rows="4" /></el-form-item></el-form>
+      <template #footer><el-button @click="newDialogVisible = false">Cancel</el-button><el-button type="primary" @click="createConsultation">Submit Request</el-button></template>
     </el-dialog>
 
-    <el-dialog v-model="expertDialogVisible" title="添加会诊专家" width="440px"><el-input v-model="expertName" placeholder="姓名和职称" /><template #footer><el-button @click="expertDialogVisible = false">取消</el-button><el-button type="primary" @click="addExpert">确认添加</el-button></template></el-dialog>
+    <el-dialog v-model="expertDialogVisible" title="Add Consultation Specialist" width="440px"><el-input v-model="expertName" placeholder="Name and title" /><template #footer><el-button @click="expertDialogVisible = false">Cancel</el-button><el-button type="primary" @click="addExpert">Add Specialist</el-button></template></el-dialog>
   </div>
 </template>
 

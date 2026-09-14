@@ -28,7 +28,7 @@ const option = computed(() => ({
   },
   series: [
     {
-      name: '收缩压',
+      name: 'Systolic BP',
       type: 'line',
       smooth: true,
       data: props.patient.status === 'stable' ? [124, 126, 125, 127, 124, 126, 126] : [142, 146, 148, 150, 149, 151, 152],
@@ -37,7 +37,7 @@ const option = computed(() => ({
       areaStyle: { color: 'rgba(47, 111, 143, 0.06)' },
     },
     {
-      name: '心率',
+      name: 'Heart Rate',
       type: 'line',
       smooth: true,
       data: props.patient.status === 'critical' ? [86, 88, 90, 92, 94, 95, 96] : [74, 76, 73, 78, 75, 77, props.patient.metrics.heartRate],

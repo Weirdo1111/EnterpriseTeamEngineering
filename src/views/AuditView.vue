@@ -15,9 +15,9 @@ const dateRange = shallowRef<string[]>([])
 const permissionVisible = shallowRef(false)
 
 const scopeDescription = computed(() => {
-  if (authStore.currentRole === 'admin') return '管理员可查看平台全部操作和异常拦截记录'
-  if (authStore.currentRole === 'seniorDoctor') return `当前显示 ${authStore.profile.department} 的业务与审核记录`
-  return `当前仅显示 ${authStore.profile.name} 本人的操作记录`
+  if (authStore.currentRole === 'admin') return 'Administrators can view all platform activity and blocked access attempts'
+  if (authStore.currentRole === 'seniorDoctor') return `Showing records for ${authStore.profile.department} clinical and review activity`
+  return `Showing only activity by ${authStore.profile.name}`
 })
 
 const scopedLogs = computed(() => {
@@ -35,49 +35,49 @@ const filteredLogs = computed(() => scopedLogs.value.filter((log) => {
 }))
 
 function exportLogs() {
-  downloadCsv('操作记录.csv', [
-    ['时间', '用户', '角色', '科室', '操作', '资源', 'IP', '结果'],
+  downloadCsv('Audit-Log.csv', [
+    ['Time', 'User', 'Role', 'Department', 'Actions', 'Resource', 'IP', 'Result'],
     ...filteredLogs.value.map((log) => [log.time, log.user, log.role, log.department, log.action, log.resource, log.ip, log.result]),
   ])
-  ElMessage.success(`已导出 ${filteredLogs.value.length} 条操作记录`)
+  ElMessage.success(`Exported ${filteredLogs.value.length} audit entries`)
 }
 </script>
 
 <template>
   <div class="view-stack">
-    <PageHeader title="操作记录" :description="scopeDescription">
-      <el-button :icon="ShieldCheck" @click="permissionVisible = true">查看权限范围</el-button>
-      <el-button :icon="Download" type="primary" @click="exportLogs">导出记录</el-button>
+    <PageHeader title="Audit Log" :description="scopeDescription">
+      <el-button :icon="ShieldCheck" @click="permissionVisible = true">View Access Scope</el-button>
+      <el-button :icon="Download" type="primary" @click="exportLogs">Export Logs</el-button>
     </PageHeader>
 
     <article class="panel">
-      <div class="panel-header"><div><h2 class="panel-title">访问与操作明细</h2><p class="panel-subtitle">患者查看、病历修改、会诊、健康管理和异常访问均在此留痕</p></div><span class="record-count">{{ filteredLogs.length }} 条</span></div>
+      <div class="panel-header"><div><h2 class="panel-title">Access and Activity Details</h2><p class="panel-subtitle">Patient views, record changes, consultations, health management, and abnormal access are logged here</p></div><span class="record-count">{{ filteredLogs.length }} records</span></div>
       <div class="panel-body">
         <div class="filter-bar">
-          <el-input v-model="filters.keyword" clearable placeholder="用户、资源或 IP"><template #prefix><Search :size="16" /></template></el-input>
-          <el-select v-model="filters.action" clearable placeholder="操作类型"><el-option v-for="action in actionOptions" :key="action" :label="action" :value="action" /></el-select>
-          <el-select v-model="filters.result" clearable placeholder="处理结果"><el-option label="成功" value="成功" /><el-option label="待复核" value="待复核" /><el-option label="拦截" value="拦截" /></el-select>
-          <el-date-picker v-model="dateRange" type="daterange" value-format="YYYY-MM-DD" start-placeholder="开始日期" end-placeholder="结束日期" range-separator="至" />
+          <el-input v-model="filters.keyword" clearable placeholder="User, resource, or IP"><template #prefix><Search :size="16" /></template></el-input>
+          <el-select v-model="filters.action" clearable placeholder="Action Type"><el-option v-for="action in actionOptions" :key="action" :label="action" :value="action" /></el-select>
+          <el-select v-model="filters.result" clearable placeholder="Result"><el-option label="Success" value="Success" /><el-option label="Pending Review" value="Pending Review" /><el-option label="Blocked" value="Blocked" /></el-select>
+          <el-date-picker v-model="dateRange" type="daterange" value-format="YYYY-MM-DD" start-placeholder="Start Date" end-placeholder="End Date" range-separator="to" />
         </div>
         <div class="audit-table-scroll"><el-table :data="filteredLogs" height="570">
-          <el-table-column prop="time" label="时间" min-width="165" />
-          <el-table-column prop="user" label="用户" min-width="110" />
-          <el-table-column prop="role" label="角色" width="100" />
-          <el-table-column prop="department" label="科室" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="action" label="操作" min-width="170" />
-          <el-table-column prop="resource" label="资源" min-width="130" />
+          <el-table-column prop="time" label="Time" min-width="165" />
+          <el-table-column prop="user" label="User" min-width="110" />
+          <el-table-column prop="role" label="Role" width="100" />
+          <el-table-column prop="department" label="Department" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="action" label="Actions" min-width="170" />
+          <el-table-column prop="resource" label="Resource" min-width="130" />
           <el-table-column prop="ip" label="IP" min-width="120" />
-          <el-table-column label="结果" width="92"><template #default="{ row }"><StatusBadge :status="row.result" type="audit" /></template></el-table-column>
+          <el-table-column label="Result" width="92"><template #default="{ row }"><StatusBadge :status="row.result" type="audit" /></template></el-table-column>
         </el-table></div>
       </div>
     </article>
 
-    <el-dialog v-model="permissionVisible" title="当前数据范围" width="500px">
+    <el-dialog v-model="permissionVisible" title="Current Data Scope" width="500px">
       <div class="permission-detail">
         <ShieldCheck :size="28" />
-        <div><strong>{{ authStore.roleLabel }}</strong><p>{{ scopeDescription }}</p><span>系统根据登录角色自动限制可见数据，越权请求会被拦截并记录。</span></div>
+        <div><strong>{{ authStore.roleLabel }}</strong><p>{{ scopeDescription }}</p><span>Visible data is automatically limited by role. Unauthorized requests are blocked and logged.</span></div>
       </div>
-      <template #footer><el-button type="primary" @click="permissionVisible = false">知道了</el-button></template>
+      <template #footer><el-button type="primary" @click="permissionVisible = false">Got It</el-button></template>
     </el-dialog>
   </div>
 </template>

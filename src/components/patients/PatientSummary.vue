@@ -15,22 +15,22 @@ defineProps<{ patient: Patient }>()
           <h2>{{ patient.name }}</h2>
           <StatusBadge :status="patient.status" type="patient" />
         </div>
-        <p>{{ patient.gender }} · {{ patient.age }} 岁 · {{ patient.id }}</p>
+        <p>{{ patient.gender }} · {{ patient.age }} years · {{ patient.id }}</p>
         <p>{{ patient.diagnosis }} · {{ patient.group }}</p>
       </div>
     </div>
 
     <dl class="metric-list">
-      <div><HeartPulse :size="17" /><dt>血压</dt><dd>{{ patient.metrics.bloodPressure }}</dd></div>
-      <div><Activity :size="17" /><dt>血糖</dt><dd>{{ patient.metrics.glucose }}</dd></div>
-      <div><Stethoscope :size="17" /><dt>心率</dt><dd>{{ patient.metrics.heartRate || '--' }}</dd></div>
-      <div><ShieldAlert :size="17" /><dt>风险评分</dt><dd>{{ patient.metrics.riskScore || '--' }}</dd></div>
+      <div><HeartPulse :size="17" /><dt>Blood Pressure</dt><dd>{{ patient.metrics.bloodPressure }}</dd></div>
+      <div><Activity :size="17" /><dt>Blood Glucose</dt><dd>{{ patient.metrics.glucose }}</dd></div>
+      <div><Stethoscope :size="17" /><dt>Heart Rate</dt><dd>{{ patient.metrics.heartRate || '--' }}</dd></div>
+      <div><ShieldAlert :size="17" /><dt>Risk Score</dt><dd>{{ patient.metrics.riskScore || '--' }}</dd></div>
     </dl>
 
     <dl class="detail-list">
-      <div><dt>病史</dt><dd>{{ patient.history }}</dd></div>
-      <div><dt>过敏史</dt><dd>{{ allergyText(patient) }}</dd></div>
-      <div><dt>管理计划</dt><dd>{{ patient.plan }}</dd></div>
+      <div><dt>Medical History</dt><dd>{{ patient.history }}</dd></div>
+      <div><dt>Allergies</dt><dd>{{ allergyText(patient) }}</dd></div>
+      <div><dt>Care Plan</dt><dd>{{ patient.plan }}</dd></div>
     </dl>
   </section>
 </template>
