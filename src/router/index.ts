@@ -1,3 +1,4 @@
+import { useClinicalStore } from '@/stores/clinical'
 import { createRouter, createWebHistory } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -29,7 +30,7 @@ const router = createRouter({
           path: 'patients',
           name: 'patients',
           component: () => import('@/views/PatientsView.vue'),
-          meta: { title: 'Patient Management' },
+          meta: { title: 'Patient Information Management' },
         },
         {
           path: 'consultation',
@@ -76,7 +77,7 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   const isPublic = Boolean(to.meta.public)
 
@@ -86,6 +87,10 @@ router.beforeEach((to) => {
 
   if (isPublic && authStore.isAuthenticated) {
     return { name: 'dashboard' }
+  }
+
+  if (authStore.isAuthenticated) {
+    try { await useClinicalStore().loadPatients() } catch { /* Patients page exposes retry and the error. */ }
   }
 
   const roles = to.meta.roles as string[] | undefined

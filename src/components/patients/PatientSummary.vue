@@ -2,6 +2,7 @@
 import { Activity, HeartPulse, ShieldAlert, Stethoscope } from '@lucide/vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import type { Patient } from '@/types/clinical'
+import { allergyText } from '@/utils/patients'
 
 defineProps<{ patient: Patient }>()
 </script>
@@ -28,7 +29,7 @@ defineProps<{ patient: Patient }>()
 
     <dl class="detail-list">
       <div><dt>Medical History</dt><dd>{{ patient.history }}</dd></div>
-      <div><dt>Allergies</dt><dd>{{ patient.allergies.join(', ') }}</dd></div>
+      <div><dt>Allergies</dt><dd>{{ allergyText(patient) }}</dd></div>
       <div><dt>Care Plan</dt><dd>{{ patient.plan }}</dd></div>
     </dl>
   </section>

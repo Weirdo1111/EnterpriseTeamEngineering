@@ -38,7 +38,7 @@ const navGroups = [
   {
     label: 'Clinical Services',
     items: [
-      { path: '/patients', label: 'Patient Management', icon: Users },
+      { path: '/patients', label: 'Patient Information Management', icon: Users },
       { path: '/consultation', label: 'Online Consultation', icon: MessageSquareText },
       { path: '/records', label: 'Medical Records', icon: FileText },
       { path: '/remote-consultations', label: 'Remote Consultation', icon: Video },

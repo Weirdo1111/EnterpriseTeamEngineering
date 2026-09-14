@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { allergyText } from '@/utils/patients'
 import { computed, reactive, shallowRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -108,6 +109,10 @@ function exportRecord() {
 }
 
 syncRecord(selectedRecord.value)
+function recordAllergyText(patientId: string) {
+  const patient = clinicalStore.patients.find(item => item.id === patientId)
+  return patient ? allergyText(patient) : 'Unconfirmed'
+}
 </script>
 
 <template>
@@ -166,7 +171,7 @@ syncRecord(selectedRecord.value)
 
           <aside class="review-column">
             <section v-if="selectedRecord.aiGenerated" class="assist-warning"><Sparkles :size="17" /><div><strong>AI-generated Draft</strong><span>Verify patient details, diagnosis, and every order before submission</span></div></section>
-            <section class="risk-section"><h3>Order Risk Alert</h3><p>Patient allergies: {{ clinicalStore.patients.find((item) => item.id === selectedRecord.patientId)?.allergies.join(', ') }}. Confirm again before prescribing related medication.</p></section>
+            <section class="risk-section"><h3>Order Risk Alert</h3><p>Patient allergies: {{ recordAllergyText(selectedRecord.patientId) }}. Confirm again before prescribing related medication.</p></section>
             <section class="review-section">
               <h3>Tiered Review</h3>
               <el-input v-model="reviewNote" type="textarea" :rows="5" resize="none" :disabled="!canReview" placeholder="Enter review notes" />

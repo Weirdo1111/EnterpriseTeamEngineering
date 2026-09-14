@@ -1,3 +1,7 @@
+import { patientsSeed } from '@/mocks/patients'
+import { patientService, patientStorageWarning } from '@/services/patients'
+import { useAuthStore } from '@/stores/auth'
+import type { PatientInput, ClassificationChange } from '@/types/clinical'
 import { computed, reactive, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import type {
@@ -21,70 +25,8 @@ interface AuditActor {
   department: string
 }
 
-type NewPatientInput = Pick<Patient, 'name' | 'gender' | 'age' | 'diagnosis' | 'group'>
 
-const patientsSeed: Patient[] = [
-  {
-    id: 'P-202609-001',
-    name: 'Jianguo Zhang',
-    gender: 'Male',
-    age: 72,
-    diagnosis: 'Hypertension with Diabetes',
-    group: 'Priority Chronic Care',
-    status: 'warning',
-    allergies: ['Penicillin'],
-    history: 'Twelve-year history of hypertension and eight-year history of type 2 diabetes, with marked nighttime blood pressure fluctuations recently.',
-    plan: 'Maintain a low-sodium diet, monitor morning blood pressure, and attend an online follow-up every two weeks.',
-    lastVisit: '2026-09-10',
-    ownerDoctor: 'Dr. Riley Lin',
-    metrics: { bloodPressure: '152/94', glucose: '8.6', heartRate: 86, riskScore: 74 },
-  },
-  {
-    id: 'P-202609-002',
-    name: 'Xiulan Chen',
-    gender: 'Female',
-    age: 68,
-    diagnosis: 'Post-PCI Cardiac Rehabilitation',
-    group: 'Rehabilitation Follow-up',
-    status: 'stable',
-    allergies: ['No known drug allergies'],
-    history: 'Six months after coronary stent placement; medication adherence is good and exercise tolerance has recently improved.',
-    plan: 'Continue cardiac rehabilitation and complete lipid and ECG tests before follow-up.',
-    lastVisit: '2026-09-09',
-    ownerDoctor: 'Dr. Michael Zhou',
-    metrics: { bloodPressure: '126/78', glucose: '5.9', heartRate: 72, riskScore: 38 },
-  },
-  {
-    id: 'P-202609-003',
-    name: 'Desheng Wang',
-    gender: 'Male',
-    age: 81,
-    diagnosis: 'Risk of Acute COPD Exacerbation',
-    group: 'Respiratory Risk Alert',
-    status: 'critical',
-    allergies: ['Sulfonamides'],
-    history: 'Fifteen-year history of COPD, with worsening cough over the past three days and pronounced exertional dyspnea.',
-    plan: 'Closely monitor oxygen saturation and respiratory rate, with referral to respiratory medicine if needed.',
-    lastVisit: '2026-09-11',
-    ownerDoctor: 'Dr. Riley Lin',
-    metrics: { bloodPressure: '138/82', glucose: '6.4', heartRate: 96, riskScore: 89 },
-  },
-  {
-    id: 'P-202609-004',
-    name: 'Yumei Liu',
-    gender: 'Female',
-    age: 75,
-    diagnosis: 'Osteoporosis and Fall Risk',
-    group: 'Home Safety Management',
-    status: 'warning',
-    allergies: ['Cephalosporins'],
-    history: 'Two falls in the past year, reduced lumbar bone density, and frequent nighttime awakenings.',
-    plan: 'Take calcium and vitamin D supplements and arrange a home safety assessment.',
-    lastVisit: '2026-09-08',
-    ownerDoctor: 'Dr. Riley Lin',
-    metrics: { bloodPressure: '132/80', glucose: '6.8', heartRate: 78, riskScore: 67 },
-  },
-]
+
 
 const consultationSeed: ConsultationSession[] = [
   {
@@ -243,6 +185,12 @@ function displayTime() {
 
 export const useClinicalStore = defineStore('clinical', () => {
   const patients = reactive<Patient[]>(structuredClone(patientsSeed))
+  const patientsLoading = shallowRef(false)
+  const patientsError = shallowRef('')
+  const patientsWarning = shallowRef('')
+  let patientsLoaded = false
+  let loadingPatients: Promise<void> | undefined
+
   const consultations = reactive<ConsultationSession[]>(structuredClone(consultationSeed))
   const records = reactive<MedicalRecord[]>(structuredClone(recordsSeed))
   const auditLogs = reactive<AuditLog[]>(structuredClone(auditSeed))
@@ -281,34 +229,70 @@ export const useClinicalStore = defineStore('clinical', () => {
     if (actor) recordAudit(actor, 'Viewed patient details', id)
   }
 
-  function addPatient(input: NewPatientInput, actor: AuditActor) {
-    const patient: Patient = {
-      ...input,
-      id: `P-202609-${String(patients.length + 1).padStart(3, '0')}`,
-      status: 'stable',
-      allergies: ['To be completed'],
-      history: 'New patient; medical history needs to be completed.',
-      plan: 'Health management plan pending.',
-      lastVisit: 'No consultations yet',
-      ownerDoctor: actor.name,
-      metrics: { bloodPressure: '--', glucose: '--', heartRate: 0, riskScore: 0 },
-    }
-    patients.unshift(patient)
-    healthPlans.push({ patientId: patient.id, goals: 'Not set', measures: 'Not set', reviewCycle: 'Monthly', updatedAt: displayTime().slice(0, 10) })
+  function syncPatients(incoming: Patient[], replace = false) {
+    patientsWarning.value = patientStorageWarning
+    const next = incoming.map(patient => {
+      const current = patients.find(item => item.id === patient.id)
+      if (!current) return patient
+      // Keep runtime health data untouched when information is saved or reloaded.
+      return { ...patient, status: current.status, group: current.group, plan: current.plan, metrics: current.metrics, lastVisit: current.lastVisit }
+    })
+    if (replace) patients.splice(0, patients.length, ...next)
+    else next.forEach(patient => {
+      const current = patients.find(item => item.id === patient.id)
+      if (current) Object.assign(current, patient)
+      else patients.unshift(patient)
+    })
+    incoming.forEach(patient => {
+      if (!healthPlans.some(plan => plan.patientId === patient.id)) {
+        healthPlans.push({ patientId: patient.id, goals: 'Not set', measures: 'Not set', reviewCycle: 'Monthly', updatedAt: displayTime().slice(0, 10) })
+      }
+    })
+  }
+
+  async function loadPatients(force = false) {
+    if (loadingPatients) return loadingPatients
+    if (patientsLoaded && !force) return
+    patientsLoading.value = true
+    patientsError.value = ''
+    loadingPatients = (async () => {
+      try {
+        syncPatients(await patientService.list(), true)
+        patientsWarning.value = patientStorageWarning
+        patientsLoaded = true
+      } catch (error) {
+        patientsError.value = error instanceof Error ? error.message : 'Failed to load patient data.'
+        throw error
+      } finally { patientsLoading.value = false; loadingPatients = undefined }
+    })()
+    return loadingPatients
+  }
+
+  function assertPatientWrite() {
+    if (!['doctor', 'seniorDoctor'].includes(useAuthStore().currentRole)) throw new Error('Your current role has read-only access to patient information.')
+  }
+
+  async function addPatient(input: PatientInput, actor: AuditActor) {
+    assertPatientWrite()
+    const patient = await patientService.create(input)
+    syncPatients([patient])
     recordAudit(actor, 'Create Patient Profile', patient.id)
     return patient
   }
 
-  function updatePatient(id: string, patch: Partial<Pick<Patient, 'diagnosis' | 'history' | 'allergies' | 'plan'>>, actor: AuditActor) {
-    const patient = patients.find((item) => item.id === id)
-    if (!patient) return
-    Object.assign(patient, patch)
+  async function updatePatient(id: string, input: PatientInput, actor: AuditActor) {
+    assertPatientWrite()
+    const patient = await patientService.update(id, input)
+    syncPatients([patient])
     recordAudit(actor, 'Updated patient profile', id)
+    return patient
   }
 
-  function batchGroup(ids: string[], group: string, actor: AuditActor) {
-    patients.filter((patient) => ids.includes(patient.id)).forEach((patient) => { patient.group = group })
-    recordAudit(actor, 'Changed patient groups in bulk', `${ids.length} patients`)
+  async function batchUpdateClassification(ids: string[], change: ClassificationChange, actor: AuditActor) {
+    assertPatientWrite()
+    const updated = await patientService.batchUpdateClassification(ids, change)
+    syncPatients(updated)
+    recordAudit(actor, 'Update Patient Classifications', updated.map(patient => patient.id).join(', '))
   }
 
   function selectConsultation(id: string) {
@@ -503,7 +487,11 @@ export const useClinicalStore = defineStore('clinical', () => {
     selectPatient,
     addPatient,
     updatePatient,
-    batchGroup,
+    batchUpdateClassification,
+    loadPatients,
+    patientsLoading,
+    patientsError,
+    patientsWarning,
     selectConsultation,
     addMessage,
     startConsultation,
