@@ -1,0 +1,29 @@
+{
+  "name": "doctor-platform-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "test": "node --test dist/db.node-test.js dist/routes/auth.node-test.js",
+    "create-user": "node scripts/create-user.js"
+  },
+  "dependencies": {
+    "argon2": "0.45.1",
+    "cors": "2.8.6",
+    "dotenv": "18.0.1",
+    "express": "5.2.1",
+    "jsonwebtoken": "9.0.3",
+    "mysql2": "3.24.4"
+  },
+  "devDependencies": {
+    "@types/cors": "2.8.19",
+    "@types/express": "5.0.6",
+    "@types/jsonwebtoken": "9.0.10",
+    "@types/node": "26.6.2",
+    "@types/supertest": "7.2.1",
+    "supertest": "7.2.2",
+    "typescript": "7.0.2"
+  }
+}
