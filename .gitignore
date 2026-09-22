@@ -1,4 +1,6 @@
 node_modules/
+backend/.env
+backend/dist/
 node_modules.incomplete-install*/
 dist/
 .vite/
