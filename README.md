@@ -99,6 +99,8 @@ http://127.0.0.1:5173/
 
 The frontend runs in local demo mode by default. For authenticated MySQL-backed records, configure `VITE_API_BASE_URL`, apply the migrations, and start the backend as documented in `backend/README.md`.
 
+The authenticated AI Assistant supports a MariaDB-backed RAG knowledge base with PPTX/PDF/DOCX ingestion, Ark embeddings, hybrid retrieval, source citations, audited queries, and a retrieval-only fallback when text generation is rate limited.
+
 ## Build
 
 ```bash

@@ -78,3 +78,24 @@ VITE_API_BASE_URL=http://127.0.0.1:3000
 Without this variable, the frontend intentionally uses local demo adapters.
 
 Run `npm run build && npm test` for the backend tests.
+
+## RAG knowledge base
+
+Configure the Ark credentials and model IDs in `backend/.env`:
+
+```text
+AI_API_KEY=replace_with_your_ark_api_key
+AI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+AI_CHAT_MODEL=doubao-seed-1-8-251228
+AI_EMBEDDING_MODEL=doubao-embedding-vision-251215
+AI_EMBEDDING_DIMENSIONS=1024
+```
+
+After applying migrations and building the backend, import PDF, PPTX, or DOCX documents:
+
+```bash
+npm run build
+npm run ingest -- "C:\path\requirements.pptx" "C:\path\guide.pdf"
+```
+
+The importer stores only extracted text, citation metadata, and vectors in MariaDB. Original files and local paths are not copied into the database. Re-importing the same file hash replaces its chunks. Authenticated clinicians can query `POST /api/rag/query`; all queries are audited. If the chat model is rate limited, the endpoint returns ranked source evidence with `generationMode: "retrieval-only"` instead of inventing an answer.

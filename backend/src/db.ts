@@ -36,6 +36,8 @@ export function createDb() {
       await pool.query('SELECT id, record_id FROM medical_orders LIMIT 0')
       await pool.query('SELECT id, record_id FROM record_reviews LIMIT 0')
       await pool.query('SELECT id, resource_id FROM audit_logs LIMIT 0')
+      await pool.query('SELECT id, status FROM knowledge_documents LIMIT 0')
+      await pool.query('SELECT id, document_id FROM knowledge_chunks LIMIT 0')
     },
     async byAccount(account: string): Promise<DbUser | null> {
       const [rows] = await pool.execute<UserRow[]>(`SELECT ${columns} FROM users WHERE username = ? LIMIT 1`, [account])

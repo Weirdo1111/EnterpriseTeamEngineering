@@ -6,10 +6,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "node --test dist/db.node-test.js dist/routes/auth.node-test.js dist/records/service.node-test.js dist/ai/service.node-test.js",
+    "test": "node --test dist/db.node-test.js dist/routes/auth.node-test.js dist/records/service.node-test.js dist/ai/service.node-test.js dist/rag/service.node-test.js",
     "migrate": "node scripts/migrate.js",
     "create-user": "node scripts/create-user.js",
-    "seed:demo": "node scripts/seed-demo-users.js"
+    "seed:demo": "node scripts/seed-demo-users.js",
+    "ingest": "node dist/rag/ingest.js"
   },
   "dependencies": {
     "argon2": "0.45.1",
@@ -19,7 +20,8 @@
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
     "jsonwebtoken": "9.0.3",
-    "mysql2": "3.24.4"
+    "mysql2": "3.24.4",
+    "officeparser": "^8.0.0"
   },
   "devDependencies": {
     "@types/cors": "2.8.19",
