@@ -99,3 +99,12 @@ npm run ingest -- "C:\path\requirements.pptx" "C:\path\guide.pdf"
 ```
 
 The importer stores only extracted text, citation metadata, and vectors in MariaDB. Original files and local paths are not copied into the database. Re-importing the same file hash replaces its chunks. Authenticated clinicians can query `POST /api/rag/query`; all queries are audited. If the chat model is rate limited, the endpoint returns ranked source evidence with `generationMode: "retrieval-only"` instead of inventing an answer.
+
+Run the reviewable retrieval benchmark, or include answer generation metrics:
+
+```bash
+npm run eval:rag
+npm run eval:rag -- --generate
+```
+
+The benchmark definitions and interpretation notes are in `docs/rag-evaluation.md`. It compares the original fragment ranking with source-page aggregation using identical query embeddings and human-authored relevance labels.

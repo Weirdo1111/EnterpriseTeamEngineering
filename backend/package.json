@@ -10,7 +10,8 @@
     "migrate": "node scripts/migrate.js",
     "create-user": "node scripts/create-user.js",
     "seed:demo": "node scripts/seed-demo-users.js",
-    "ingest": "node dist/rag/ingest.js"
+    "ingest": "node dist/rag/ingest.js",
+    "eval:rag": "node dist/rag/evaluate.js"
   },
   "dependencies": {
     "argon2": "0.45.1",

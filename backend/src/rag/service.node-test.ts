@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { cosineSimilarity, createRagService, rankChunks } from './service.js'
+import { cosineSimilarity, createRagService, rankChunks, rankSourceGroups } from './service.js'
 import { ArkApiError } from './ark.js'
 
 const chunks = [
@@ -11,6 +11,17 @@ const chunks = [
 test('computes cosine similarity and ranks the closest source', () => {
   assert.equal(cosineSimilarity([1, 0], [1, 0]), 1)
   assert.equal(rankChunks(chunks, [0.9, 0.1])[0]?.chunk.id, '1')
+})
+
+test('groups fragments from the same source location into one result', () => {
+  const fragmented = [
+    { ...chunks[0]!, id: '1a', location: 'Slide 2', index: 1, content: 'JWT authentication' },
+    { ...chunks[0]!, id: '1b', location: 'Slide 2', index: 2, content: 'RBAC authorization' },
+    chunks[1]!,
+  ]
+  const ranked = rankSourceGroups(fragmented, [1, 0], 5, 'authentication authorization')
+  assert.equal(ranked.length, 2)
+  assert.match(ranked[0]!.chunk.content, /JWT authentication\nRBAC authorization/)
 })
 
 test('returns generated text with traceable sources', async () => {

@@ -29,6 +29,23 @@ export function rankChunks(chunks: StoredKnowledgeChunk[], queryEmbedding: numbe
     .sort((left, right) => right.score - left.score).slice(0, limit)
 }
 
+export function rankSourceGroups(chunks: StoredKnowledgeChunk[], queryEmbedding: number[], limit = 8, question = '') {
+  const groups = new Map<string, StoredKnowledgeChunk[]>()
+  for (const chunk of chunks) {
+    const key = `${chunk.documentId}\u0000${chunk.location ?? chunk.id}`
+    const group = groups.get(key) ?? []
+    group.push(chunk)
+    groups.set(key, group)
+  }
+  return [...groups.values()].map(group => {
+    const ordered = [...group].sort((left, right) => (left.index ?? 0) - (right.index ?? 0))
+    const content = [...new Set(ordered.map(item => item.content.trim()).filter(Boolean))].join('\n')
+    const representative = group.reduce((best, item) => cosineSimilarity(item.embedding, queryEmbedding) > cosineSimilarity(best.embedding, queryEmbedding) ? item : best)
+    const semantic = Math.max(...group.map(item => cosineSimilarity(item.embedding, queryEmbedding)))
+    return { chunk: { ...representative, content }, score: semantic * 0.85 + lexicalScore(question, content) * 0.15 }
+  }).sort((left, right) => right.score - left.score).slice(0, limit)
+}
+
 export function createRagService(dependencies: {
   chunks: () => Promise<StoredKnowledgeChunk[]>
   embed: (text: string) => Promise<number[]>
@@ -40,7 +57,7 @@ export function createRagService(dependencies: {
       if (!clean || clean.length > 4000) throw new Error('Question must contain 1 to 4000 characters.')
       const chunks = await dependencies.chunks()
       if (!chunks.length) throw new Error('The knowledge base is empty. Import documents before asking questions.')
-      const ranked = rankChunks(chunks, await dependencies.embed(clean), 8, clean)
+      const ranked = rankSourceGroups(chunks, await dependencies.embed(clean), 8, clean)
       const sources: RagSource[] = ranked.map(({ chunk, score }, index) => ({
         id: chunk.id, documentId: chunk.documentId, title: chunk.title, filename: chunk.filename,
         location: chunk.location, heading: chunk.heading, excerpt: chunk.content.slice(0, 500),

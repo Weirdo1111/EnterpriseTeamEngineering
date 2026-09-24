@@ -11,6 +11,7 @@ export type KnowledgeChunkInput = {
 
 export type StoredKnowledgeChunk = {
   id: string
+  index?: number
   documentId: string
   title: string
   filename: string
@@ -21,7 +22,7 @@ export type StoredKnowledgeChunk = {
 }
 
 type ChunkRow = RowDataPacket & {
-  id: string; document_id: string; title: string; filename: string; location_label: string | null
+  id: string; chunk_index: number; document_id: string; title: string; filename: string; location_label: string | null
   heading: string | null; content: string; embedding: string
 }
 
@@ -32,10 +33,10 @@ export function createKnowledgeRepository(pool: Pool) {
       return rows
     },
     async readyChunks(): Promise<StoredKnowledgeChunk[]> {
-      const [rows] = await pool.query<ChunkRow[]>(`SELECT c.id, c.document_id, d.title, d.filename, c.location_label, c.heading, c.content, c.embedding
-        FROM knowledge_chunks c JOIN knowledge_documents d ON d.id = c.document_id WHERE d.status = 'ready'`)
+      const [rows] = await pool.query<ChunkRow[]>(`SELECT c.id, c.chunk_index, c.document_id, d.title, d.filename, c.location_label, c.heading, c.content, c.embedding
+        FROM knowledge_chunks c JOIN knowledge_documents d ON d.id = c.document_id WHERE d.status = 'ready' ORDER BY c.document_id, c.chunk_index`)
       return rows.map(row => ({
-        id: String(row.id), documentId: row.document_id, title: row.title, filename: row.filename,
+        id: String(row.id), index: row.chunk_index, documentId: row.document_id, title: row.title, filename: row.filename,
         location: row.location_label ?? undefined, heading: row.heading ?? undefined, content: row.content,
         embedding: JSON.parse(row.embedding) as number[],
       }))
