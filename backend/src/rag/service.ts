@@ -40,7 +40,7 @@ export function createRagService(dependencies: {
       if (!clean || clean.length > 4000) throw new Error('Question must contain 1 to 4000 characters.')
       const chunks = await dependencies.chunks()
       if (!chunks.length) throw new Error('The knowledge base is empty. Import documents before asking questions.')
-      const ranked = rankChunks(chunks, await dependencies.embed(clean), 5, clean)
+      const ranked = rankChunks(chunks, await dependencies.embed(clean), 8, clean)
       const sources: RagSource[] = ranked.map(({ chunk, score }, index) => ({
         id: chunk.id, documentId: chunk.documentId, title: chunk.title, filename: chunk.filename,
         location: chunk.location, heading: chunk.heading, excerpt: chunk.content.slice(0, 500),

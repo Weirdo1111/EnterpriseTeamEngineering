@@ -86,7 +86,7 @@ Configure the Ark credentials and model IDs in `backend/.env`:
 ```text
 AI_API_KEY=replace_with_your_ark_api_key
 AI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
-AI_CHAT_MODEL=doubao-seed-1-8-251228
+AI_CHAT_MODEL=doubao-seed-2-0-lite-260428
 AI_EMBEDDING_MODEL=doubao-embedding-vision-251215
 AI_EMBEDDING_DIMENSIONS=1024
 ```

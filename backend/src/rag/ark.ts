@@ -64,6 +64,7 @@ export function createArkClient(config: ArkConfig, fetcher: typeof fetch = fetch
         model: config.chatModel,
         temperature: 0.1,
         max_tokens: 1200,
+        thinking: { type: 'disabled' },
         messages: [
           { role: 'system', content: 'You are a healthcare software project assistant. Answer only from the supplied sources. Cite factual claims with [1], [2], and so on. If the sources are insufficient, say so explicitly. Do not diagnose patients or invent clinical facts. Keep the answer concise and professional.' },
           { role: 'user', content: `Question:\n${question}\n\nSources:\n${context}` },
