@@ -1,5 +1,8 @@
 import { patientsSeed } from '@/mocks/patients'
+import { recordsSeed } from '@/mocks/records'
+import { clinicalAiService } from '@/services/clinical-ai'
 import { patientService, patientStorageWarning } from '@/services/patients'
+import { medicalRecordService } from '@/services/records'
 import { useAuthStore } from '@/stores/auth'
 import type { PatientInput, ClassificationChange } from '@/types/clinical'
 import { computed, reactive, shallowRef } from 'vue'
@@ -69,44 +72,6 @@ const consultationSeed: ConsultationSession[] = [
       { id: 'm7', sender: 'patient', content: 'I have had no recent chest pain, and walking feels easier than last month.', time: '16:18' },
       { id: 'm8', sender: 'doctor', content: 'Continue taking your medication regularly and repeat the lipid panel and ECG within two weeks.', time: '16:32' },
     ],
-  },
-]
-
-const recordsSeed: MedicalRecord[] = [
-  {
-    id: 'MR-8842',
-    patientId: 'P-202609-001',
-    patientName: 'Jianguo Zhang',
-    doctor: 'Dr. Riley Lin',
-    chiefComplaint: 'Elevated morning blood pressure with head pressure for two days',
-    presentIllness: 'For the past two mornings, the patient reported blood pressure around 152/94 mmHg with head pressure and poor sleep, while reporting regular use of antihypertensive medication.',
-    diagnosis: 'Suboptimally Controlled Hypertension; Type 2 Diabetes Follow-up',
-    orders: [
-      { id: 'O-101', type: 'Nursing', content: 'Monitor morning and bedtime blood pressure for three days', status: 'active' },
-      { id: 'O-102', type: 'Laboratory', content: 'Repeat fasting glucose', status: 'active' },
-      { id: 'O-103', type: 'Examination', content: 'Assess sleep and medication adherence', status: 'active' },
-    ],
-    status: 'pending',
-    aiGenerated: true,
-    updatedAt: '2026-09-12 09:31',
-  },
-  {
-    id: 'MR-8839',
-    patientId: 'P-202609-002',
-    patientName: 'Xiulan Chen',
-    doctor: 'Dr. Michael Zhou',
-    chiefComplaint: 'Post-PCI follow-up',
-    presentIllness: 'The patient has taken antiplatelet and lipid-lowering medication regularly after surgery, reports no recent chest pain or tightness, and has improved walking tolerance.',
-    diagnosis: 'Recovery after Coronary Stent Placement',
-    orders: [
-      { id: 'O-201', type: 'Medication', content: 'Continue secondary prevention medication', status: 'active' },
-      { id: 'O-202', type: 'Laboratory', content: 'Repeat lipid panel within two weeks', status: 'active' },
-      { id: 'O-203', type: 'Nursing', content: 'Continue cardiac rehabilitation', status: 'active' },
-    ],
-    status: 'approved',
-    aiGenerated: false,
-    reviewNote: 'The record is complete and the orders are appropriate.',
-    updatedAt: '2026-09-11 16:40',
   },
 ]
 
@@ -193,6 +158,10 @@ export const useClinicalStore = defineStore('clinical', () => {
 
   const consultations = reactive<ConsultationSession[]>(structuredClone(consultationSeed))
   const records = reactive<MedicalRecord[]>(structuredClone(recordsSeed))
+  const recordsLoading = shallowRef(false)
+  const recordsError = shallowRef('')
+  let recordsLoaded = false
+  let loadingRecords: Promise<void> | undefined
   const auditLogs = reactive<AuditLog[]>(structuredClone(auditSeed))
   const ragReferences = reactive<RagReference[]>(structuredClone(referencesSeed))
   const remoteConsultations = reactive<RemoteConsultation[]>(structuredClone(remoteSeed))
@@ -295,6 +264,33 @@ export const useClinicalStore = defineStore('clinical', () => {
     recordAudit(actor, 'Update Patient Classifications', updated.map(patient => patient.id).join(', '))
   }
 
+  function syncRecord(record: MedicalRecord) {
+    const current = records.find(item => item.id === record.id)
+    if (current) Object.assign(current, structuredClone(record))
+    else records.unshift(structuredClone(record))
+    return current ?? records[0]!
+  }
+
+  async function loadRecords(force = false) {
+    if (loadingRecords) return loadingRecords
+    if (recordsLoaded && !force) return
+    recordsLoading.value = true
+    recordsError.value = ''
+    loadingRecords = (async () => {
+      try {
+        records.splice(0, records.length, ...await medicalRecordService.list())
+        recordsLoaded = true
+      } catch (error) {
+        recordsError.value = error instanceof Error ? error.message : 'Failed to load medical records.'
+        throw error
+      } finally {
+        recordsLoading.value = false
+        loadingRecords = undefined
+      }
+    })()
+    return loadingRecords
+  }
+
   function selectConsultation(id: string) {
     selectedConsultationId.value = id
     const session = consultations.find((item) => item.id === id)
@@ -330,70 +326,77 @@ export const useClinicalStore = defineStore('clinical', () => {
     recordAudit(actor, 'Completed online consultation', id)
   }
 
-  function createAiRecord(actor: AuditActor, patientId = selectedPatient.value.id) {
+  async function createAiRecord(actor: AuditActor, patientId = selectedPatient.value.id) {
     const patient = patients.find((item) => item.id === patientId) ?? selectedPatient.value
-    const existing = records.find((record) => record.patientId === patient.id && record.aiGenerated && record.status !== 'archived')
+    const existing = records.find((record) => record.patientId === patient.id && record.aiGenerated && ['draft', 'returned'].includes(record.status))
     if (existing) return existing
-
-    const record: MedicalRecord = {
-      id: `MR-${Math.floor(9000 + Math.random() * 900)}`,
+    const consultation = consultations.find(item => item.patientId === patient.id)
+    const suggestion = await clinicalAiService.generateRecordDraft({ patient, consultation, references: ragReferences })
+    const record = await medicalRecordService.createDraft({
       patientId: patient.id,
       patientName: patient.name,
-      doctor: actor.name,
-      chiefComplaint: patient.status === 'critical' ? 'Worsening cough and dyspnea with risk of acute exacerbation' : 'Structured follow-up record required after online consultation',
-      presentIllness: `${patient.history} This draft combines the consultation record with home health data and requires physician review.`,
-      diagnosis: patient.diagnosis,
-      orders: [
-        { id: `O-${Date.now()}-1`, type: 'Nursing', content: 'Continue monitoring key vital signs', status: 'active' },
-        { id: `O-${Date.now()}-2`, type: 'Examination', content: 'Complete the relevant follow-up examinations', status: 'active' },
-      ],
-      status: 'draft',
-      aiGenerated: true,
-      updatedAt: displayTime(),
-    }
-    records.unshift(record)
+      chiefComplaint: suggestion.chiefComplaint,
+      presentIllness: suggestion.presentIllness,
+      diagnosis: suggestion.diagnosis,
+      orders: suggestion.orders,
+      aiMetadata: {
+        generator: suggestion.generator,
+        generatedAt: suggestion.generatedAt,
+        safetyWarnings: suggestion.safetyWarnings,
+        sourceIds: suggestion.sourceIds,
+      },
+    })
+    syncRecord(record)
     recordAudit(actor, 'Generated medical record draft with AI', record.id, 'Pending Review')
     return record
   }
 
-  function saveRecord(id: string, fields: Pick<MedicalRecord, 'chiefComplaint' | 'presentIllness' | 'diagnosis'>, actor: AuditActor, submit = false) {
+  async function saveRecord(id: string, fields: Pick<MedicalRecord, 'chiefComplaint' | 'presentIllness' | 'diagnosis'>, actor: AuditActor, submit = false) {
     const record = records.find((item) => item.id === id)
-    if (!record) return
-    Object.assign(record, fields)
-    record.status = submit ? 'pending' : 'draft'
-    record.updatedAt = displayTime()
+    if (!record) throw new Error('Medical record not found.')
+    let updated = await medicalRecordService.updateClinicalFields(id, fields, record.version)
+    if (submit) updated = await medicalRecordService.submit(id, updated.version)
+    syncRecord(updated)
     recordAudit(actor, submit ? 'Submitted medical record for review' : 'Saved medical record draft', id, submit ? 'Pending Review' : 'Success')
+    return updated
   }
 
-  function addOrder(recordId: string, order: Pick<MedicalOrder, 'type' | 'content'>, actor: AuditActor) {
+  async function addOrder(recordId: string, order: Pick<MedicalOrder, 'type' | 'content'>, actor: AuditActor) {
     const record = records.find((item) => item.id === recordId)
-    if (!record) return
-    record.orders.push({ ...order, id: `O-${Date.now()}`, status: 'active' })
+    if (!record) throw new Error('Medical record not found.')
+    const updated = await medicalRecordService.addOrder(recordId, order, record.version)
+    syncRecord(updated)
     recordAudit(actor, 'Add Order', recordId)
+    return updated
   }
 
-  function updateOrder(recordId: string, orderId: string, content: string, actor: AuditActor) {
-    const order = records.find((item) => item.id === recordId)?.orders.find((item) => item.id === orderId)
-    if (!order) return
-    order.content = content
+  async function updateOrder(recordId: string, orderId: string, content: string, actor: AuditActor) {
+    const record = records.find((item) => item.id === recordId)
+    if (!record) throw new Error('Medical record not found.')
+    const updated = await medicalRecordService.updateOrder(recordId, orderId, content, record.version)
+    syncRecord(updated)
     recordAudit(actor, 'Edit Order', recordId)
+    return updated
   }
 
-  function stopOrder(recordId: string, orderId: string, actor: AuditActor) {
-    const order = records.find((item) => item.id === recordId)?.orders.find((item) => item.id === orderId)
-    if (!order) return
-    order.status = 'stopped'
+  async function stopOrder(recordId: string, orderId: string, actor: AuditActor) {
+    const record = records.find((item) => item.id === recordId)
+    if (!record) throw new Error('Medical record not found.')
+    const updated = await medicalRecordService.stopOrder(recordId, orderId, record.version)
+    syncRecord(updated)
     recordAudit(actor, 'Stop Order', recordId)
+    return updated
   }
 
-  function updateRecordStatus(id: string, status: RecordStatus, reviewNote: string, actor: AuditActor) {
+  async function updateRecordStatus(id: string, status: RecordStatus, reviewNote: string, actor: AuditActor) {
     const record = records.find((item) => item.id === id)
-    if (!record) return
-    record.status = status
-    record.reviewNote = reviewNote
-    record.updatedAt = displayTime()
+    if (!record) throw new Error('Medical record not found.')
+    if (!['approved', 'returned', 'archived'].includes(status)) throw new Error('Invalid review decision.')
+    const updated = await medicalRecordService.review(id, status as 'approved' | 'returned' | 'archived', reviewNote, record.version)
+    syncRecord(updated)
     const action = status === 'approved' ? 'Approved medical record' : status === 'returned' ? 'Returned medical record' : status === 'archived' ? 'Archived medical record' : 'Updated medical record status'
     recordAudit(actor, action, id, status === 'returned' ? 'Pending Review' : 'Success')
+    return updated
   }
 
   function createRemoteConsultation(input: Pick<RemoteConsultation, 'patientId' | 'specialty' | 'reason' | 'scheduledAt'>, actor: AuditActor) {
@@ -468,6 +471,8 @@ export const useClinicalStore = defineStore('clinical', () => {
     patients,
     consultations,
     records,
+    recordsLoading,
+    recordsError,
     auditLogs,
     ragReferences,
     remoteConsultations,
@@ -489,6 +494,7 @@ export const useClinicalStore = defineStore('clinical', () => {
     updatePatient,
     batchUpdateClassification,
     loadPatients,
+    loadRecords,
     patientsLoading,
     patientsError,
     patientsWarning,

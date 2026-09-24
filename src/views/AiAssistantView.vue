@@ -82,14 +82,19 @@ function generate() {
   }, 560)
 }
 
-function createDraft() {
+async function createDraft() {
   if (authStore.currentRole === 'admin') {
     ElMessage.warning('Administrators cannot create clinical records.')
     return
   }
-  const record = clinicalStore.createAiRecord(actor.value)
-  ElMessage.success('Content added to the record draft. Continue reviewing it.')
-  router.push({ path: '/records', query: { record: record.id } })
+  loading.value = true
+  try {
+    const record = await clinicalStore.createAiRecord(actor.value)
+    ElMessage.success('Content added to the record draft. Continue reviewing it.')
+    router.push({ path: '/records', query: { record: record.id } })
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : 'Unable to create the medical record draft.')
+  } finally { loading.value = false }
 }
 </script>
 

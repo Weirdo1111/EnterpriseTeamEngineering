@@ -15,6 +15,7 @@ const clinicalStore = useClinicalStore()
 const draftMessage = shallowRef('')
 const historyVisible = shallowRef(false)
 const summaryUpdated = shallowRef(false)
+const generatingRecord = shallowRef(false)
 
 const actor = computed(() => ({ name: authStore.profile.name, role: authStore.roleLabel, department: authStore.profile.department }))
 const selectedSession = computed(() => clinicalStore.selectedConsultation)
@@ -68,11 +69,16 @@ function finishSession() {
   ElMessage.success('Consultation completed and record saved.')
 }
 
-function generateRecord() {
+async function generateRecord() {
   if (!canOperate.value) return
-  const record = clinicalStore.createAiRecord(actor.value, selectedPatient.value.id)
-  ElMessage.success('Medical record draft generated. Review it before submission.')
-  router.push({ path: '/records', query: { record: record.id } })
+  generatingRecord.value = true
+  try {
+    const record = await clinicalStore.createAiRecord(actor.value, selectedPatient.value.id)
+    ElMessage.success('Medical record draft generated. Review it before submission.')
+    router.push({ path: '/records', query: { record: record.id } })
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : 'Unable to create the medical record draft.')
+  } finally { generatingRecord.value = false }
 }
 
 function exportSession() {
@@ -137,7 +143,7 @@ function exportSession() {
           <div class="panel-body">
             <ul class="summary-list"><li v-for="item in aiSummary" :key="item">{{ item }}</li></ul>
             <p v-if="summaryUpdated" class="updated-line">Updated from the latest conversation</p>
-            <div class="assist-actions"><el-button size="small" @click="refreshSummary">Refresh Summary</el-button><el-button :icon="FilePlus2" size="small" type="primary" :disabled="!canOperate" @click="generateRecord">Generate Record Draft</el-button></div>
+            <div class="assist-actions"><el-button size="small" @click="refreshSummary">Refresh Summary</el-button><el-button :icon="FilePlus2" size="small" type="primary" :loading="generatingRecord" :disabled="!canOperate" @click="generateRecord">Generate Record Draft</el-button></div>
           </div>
         </article>
       </aside>

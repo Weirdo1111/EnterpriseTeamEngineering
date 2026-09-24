@@ -28,5 +28,5 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Test patient information
+      - name: Test domain services
         run: npm test
