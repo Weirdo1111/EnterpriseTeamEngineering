@@ -77,8 +77,14 @@ const router = createRouter({
   ],
 })
 
+let sessionChecked = false
+
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
+  if (!sessionChecked && authStore.isAuthenticated) {
+    sessionChecked = true
+    try { await authStore.restoreSession() } catch { await authStore.logout() }
+  }
   const isPublic = Boolean(to.meta.public)
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {

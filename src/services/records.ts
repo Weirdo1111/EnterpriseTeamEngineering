@@ -1,6 +1,7 @@
 import { recordsSeed } from '@/mocks/records'
 import { useAuthStore } from '@/stores/auth'
 import type { AiGenerationMetadata, MedicalOrder, MedicalRecord, RecordReviewDecision, Role } from '@/types/clinical'
+import { apiEnabled, apiRequest } from './http'
 
 export const RECORD_STORAGE_KEY = 'doctor-platform-medical-records-v1'
 export const RECORD_STORAGE_VERSION = 1
@@ -232,8 +233,39 @@ export function createMockMedicalRecordService(options: {
   }
 }
 
-export const medicalRecordService = createMockMedicalRecordService({
+export function createApiMedicalRecordService(): MedicalRecordService {
+  const record = (result: { record: MedicalRecord }) => result.record
+  return {
+    async list() { return (await apiRequest<{ records: MedicalRecord[] }>('/api/records')).records },
+    async getById(id) { return record(await apiRequest<{ record: MedicalRecord }>(`/api/records/${encodeURIComponent(id)}`)) },
+    async createDraft(input) {
+      return record(await apiRequest<{ record: MedicalRecord }>('/api/records', { method: 'POST', body: JSON.stringify(input) }))
+    },
+    async updateClinicalFields(id, fields, expectedVersion) {
+      return record(await apiRequest<{ record: MedicalRecord }>(`/api/records/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ ...fields, expectedVersion }) }))
+    },
+    async submit(id, expectedVersion) {
+      return record(await apiRequest<{ record: MedicalRecord }>(`/api/records/${encodeURIComponent(id)}/submit`, { method: 'POST', body: JSON.stringify({ expectedVersion }) }))
+    },
+    async addOrder(id, order, expectedVersion) {
+      return record(await apiRequest<{ record: MedicalRecord }>(`/api/records/${encodeURIComponent(id)}/orders`, { method: 'POST', body: JSON.stringify({ ...order, expectedVersion }) }))
+    },
+    async updateOrder(id, orderId, content, expectedVersion) {
+      return record(await apiRequest<{ record: MedicalRecord }>(`/api/records/${encodeURIComponent(id)}/orders/${encodeURIComponent(orderId)}`, { method: 'PATCH', body: JSON.stringify({ content, expectedVersion }) }))
+    },
+    async stopOrder(id, orderId, expectedVersion) {
+      return record(await apiRequest<{ record: MedicalRecord }>(`/api/records/${encodeURIComponent(id)}/orders/${encodeURIComponent(orderId)}/stop`, { method: 'POST', body: JSON.stringify({ expectedVersion }) }))
+    },
+    async review(id, decision, note, expectedVersion) {
+      return record(await apiRequest<{ record: MedicalRecord }>(`/api/records/${encodeURIComponent(id)}/reviews`, { method: 'POST', body: JSON.stringify({ decision, note, expectedVersion }) }))
+    },
+  }
+}
+
+const mockMedicalRecordService = createMockMedicalRecordService({
   storage: () => window.localStorage,
   role: () => useAuthStore().currentRole,
   owner: () => useAuthStore().profile.name,
 })
+
+export const medicalRecordService = apiEnabled ? createApiMedicalRecordService() : mockMedicalRecordService

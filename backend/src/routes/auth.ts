@@ -1,6 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import argon2 from 'argon2'
 import jwt, { type JwtPayload } from 'jsonwebtoken'
+import { rateLimit } from 'express-rate-limit'
 import type { DbUser, UserLookup } from '../db.js'
 
 const roles = new Set(['doctor', 'seniorDoctor', 'admin'])
@@ -17,26 +18,11 @@ function publicUser(user: DbUser) {
 
 export function createAuthRouter(users: UserLookup, secret: string) {
   const router = Router()
+  const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false, message: { message: 'Too many sign-in attempts. Try again later.' } })
 
-  async function authenticated(req: Request, res: Response, next: NextFunction) {
-    const match = /^Bearer (\S+)$/i.exec(req.header('Authorization') || '')
-    if (!match) { res.status(401).json({ message: 'Unauthorized' }); return }
-    try {
-      const payload = jwt.verify(match[1]!, secret, { algorithms: ['HS256'] }) as JwtPayload
-      if (typeof payload.sub !== 'string') { res.status(401).json({ message: 'Unauthorized' }); return }
-      const user = await users.byId(payload.sub)
-      if (!user || user.status !== 'active' || !roles.has(user.role)) {
-        res.status(401).json({ message: 'Unauthorized' }); return
-      }
-      res.locals.user = user
-      next()
-    } catch (error) {
-      if (error instanceof jwt.JsonWebTokenError) { res.status(401).json({ message: 'Unauthorized' }); return }
-      next(error)
-    }
-  }
+  const authenticated = createAuthenticated(users, secret)
 
-  router.post('/login', async (req, res) => {
+  router.post('/login', loginLimiter, async (req, res) => {
     const { account, password } = req.body ?? {}
     if (typeof account !== 'string' || typeof password !== 'string' || !account.trim() || !password || account.length > 50) {
       res.status(400).json({ message: 'Account and password are required' }); return
@@ -61,4 +47,24 @@ export function createAuthRouter(users: UserLookup, secret: string) {
   })
 
   return router
+}
+
+export function createAuthenticated(users: UserLookup, secret: string) {
+  return async function authenticated(req: Request, res: Response, next: NextFunction) {
+    const match = /^Bearer (\S+)$/i.exec(req.header('Authorization') || '')
+    if (!match) { res.status(401).json({ message: 'Unauthorized' }); return }
+    try {
+      const payload = jwt.verify(match[1]!, secret, { algorithms: ['HS256'] }) as JwtPayload
+      if (typeof payload.sub !== 'string') { res.status(401).json({ message: 'Unauthorized' }); return }
+      const user = await users.byId(payload.sub)
+      if (!user || user.status !== 'active' || !roles.has(user.role)) {
+        res.status(401).json({ message: 'Unauthorized' }); return
+      }
+      res.locals.user = user
+      next()
+    } catch (error) {
+      if (error instanceof jwt.JsonWebTokenError) { res.status(401).json({ message: 'Unauthorized' }); return }
+      next(error)
+    }
+  }
 }

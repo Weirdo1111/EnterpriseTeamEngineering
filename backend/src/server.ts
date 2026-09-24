@@ -1,8 +1,13 @@
 import 'dotenv/config'
 import express, { type ErrorRequestHandler } from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
 import { createDb } from './db.js'
 import { createAuthRouter } from './routes/auth.js'
+import { createRecordRepository } from './records/repository.js'
+import { createRecordService } from './records/service.js'
+import { createRecordsRouter } from './routes/records.js'
+import { createAiRouter } from './routes/ai.js'
 
 async function main() {
   const secret = process.env.JWT_SECRET
@@ -12,9 +17,12 @@ async function main() {
     await db.check()
     const app = express()
     app.disable('x-powered-by')
+    app.use(helmet())
     app.use(cors({ origin: ['http://127.0.0.1:5173', 'http://localhost:5173'] }))
     app.use(express.json({ limit: '16kb' }))
     app.use('/api/auth', createAuthRouter(db, secret))
+    app.use('/api/records', createRecordsRouter(db, secret, createRecordService(createRecordRepository(db.pool)), db.pool))
+    app.use('/api/ai', createAiRouter(db, secret, db.pool))
     const errors: ErrorRequestHandler = (_error, _req, res, _next) => {
       res.status(500).json({ message: 'Internal server error' })
     }

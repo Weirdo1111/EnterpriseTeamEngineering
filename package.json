@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "create-user": "node backend/scripts/create-user.js",
+    "create-user": "npm --prefix backend run create-user",
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1"
@@ -13,10 +13,8 @@
   "dependencies": {
     "@lucide/vue": "^1.44.0",
     "@vitejs/plugin-vue": "^5.2.4",
-    "argon2": "^0.45.1",
-    "echarts": "^5.6.0",
+    "echarts": "^6.1.0",
     "element-plus": "^2.10.7",
-    "mysql2": "^3.24.4",
     "pinia": "^2.3.1",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
@@ -25,7 +23,7 @@
     "@types/node": "^26.6.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
-    "vitest": "^3.2.7",
+    "vitest": "^5.0.1",
     "vue-tsc": "^2.2.0"
   }
 }

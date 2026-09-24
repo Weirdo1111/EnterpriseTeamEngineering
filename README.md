@@ -80,6 +80,9 @@ The production backend should enforce the same role permissions, state transitio
 - Element Plus
 - ECharts
 - @lucide/vue
+- Express 5 + TypeScript
+- MySQL 8
+- JWT + Argon2id
 
 ## Local Development
 
@@ -93,6 +96,8 @@ Default URL:
 ```text
 http://127.0.0.1:5173/
 ```
+
+The frontend runs in local demo mode by default. For authenticated MySQL-backed records, configure `VITE_API_BASE_URL`, apply the migrations, and start the backend as documented in `backend/README.md`.
 
 ## Build
 

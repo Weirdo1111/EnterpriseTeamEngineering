@@ -1,4 +1,5 @@
 import type { ConsultationSession, MedicalOrder, Patient, RagReference } from '@/types/clinical'
+import { apiEnabled, apiRequest } from './http'
 
 export interface ClinicalDraftSuggestion {
   chiefComplaint: string
@@ -16,7 +17,7 @@ export interface ClinicalAiService {
 }
 
 // Deterministic and traceable fallback. Replace this adapter with the FastAPI RAG endpoint.
-export const clinicalAiService: ClinicalAiService = {
+const localClinicalAiService: ClinicalAiService = {
   async generateRecordDraft({ patient, consultation, references }) {
     const messages = consultation?.messages.map(message => message.content).join(' ') ?? ''
     const sourceIds = [patient.id, consultation?.id, ...references.slice(0, 2).map(item => item.id)].filter((value): value is string => Boolean(value))
@@ -48,3 +49,13 @@ export const clinicalAiService: ClinicalAiService = {
     }
   },
 }
+
+const apiClinicalAiService: ClinicalAiService = {
+  async generateRecordDraft(context) {
+    return (await apiRequest<{ suggestion: ClinicalDraftSuggestion }>('/api/ai/record-draft', {
+      method: 'POST', body: JSON.stringify(context),
+    })).suggestion
+  },
+}
+
+export const clinicalAiService = apiEnabled ? apiClinicalAiService : localClinicalAiService
