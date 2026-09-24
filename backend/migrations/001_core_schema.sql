@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   PRIMARY KEY (id),
   UNIQUE KEY uq_users_username (username),
   UNIQUE KEY uq_users_email (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS medical_records (
   id VARCHAR(64) NOT NULL,
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS medical_records (
   KEY idx_records_status (status, updated_at),
   CONSTRAINT fk_records_doctor FOREIGN KEY (doctor_id) REFERENCES users (id),
   CONSTRAINT fk_records_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS medical_orders (
   id VARCHAR(64) NOT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS medical_orders (
   CONSTRAINT fk_orders_record FOREIGN KEY (record_id) REFERENCES medical_records (id),
   CONSTRAINT fk_orders_creator FOREIGN KEY (created_by) REFERENCES users (id),
   CONSTRAINT fk_orders_stopper FOREIGN KEY (stopped_by) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS record_reviews (
   id VARCHAR(64) NOT NULL,
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS record_reviews (
   KEY idx_reviews_record (record_id, created_at),
   CONSTRAINT fk_reviews_record FOREIGN KEY (record_id) REFERENCES medical_records (id),
   CONSTRAINT fk_reviews_reviewer FOREIGN KEY (reviewer_id) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -90,4 +90,4 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   KEY idx_audit_resource (resource_type, resource_id, created_at),
   KEY idx_audit_user (user_id, created_at),
   CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

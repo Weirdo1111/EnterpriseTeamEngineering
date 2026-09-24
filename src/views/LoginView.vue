@@ -19,7 +19,7 @@ const faceVerified = shallowRef(false)
 const smsSent = shallowRef(false)
 const form = reactive({
   account: 'doctor.demo',
-  password: '123456',
+  password: '',
   captcha: '0926',
   mobile: '138****6026',
   smsCode: '',

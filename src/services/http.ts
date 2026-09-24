@@ -1,5 +1,5 @@
 export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
-export const apiEnabled = Boolean(apiBaseUrl)
+export const apiEnabled = Boolean(apiBaseUrl) && import.meta.env.MODE !== 'test'
 
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) { super(message) }

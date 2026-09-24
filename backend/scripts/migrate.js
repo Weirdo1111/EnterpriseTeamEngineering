@@ -18,7 +18,7 @@ try {
   await connection.execute(`CREATE TABLE IF NOT EXISTS schema_migrations (
     filename VARCHAR(255) NOT NULL PRIMARY KEY,
     applied_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
   const [appliedRows] = await connection.query('SELECT filename FROM schema_migrations')
   const applied = new Set(appliedRows.map(row => row.filename))
   const files = (await readdir(directory)).filter(name => name.endsWith('.sql')).sort()

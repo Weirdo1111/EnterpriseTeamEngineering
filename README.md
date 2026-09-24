@@ -81,7 +81,7 @@ The production backend should enforce the same role permissions, state transitio
 - ECharts
 - @lucide/vue
 - Express 5 + TypeScript
-- MySQL 8
+- MySQL 8 or MariaDB 10.4+
 - JWT + Argon2id
 
 ## Local Development

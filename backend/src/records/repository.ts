@@ -19,6 +19,7 @@ type ReviewRow = RowDataPacket & {
 
 const iso = (value: Date | string) => value instanceof Date ? value.toISOString() : new Date(value).toISOString()
 const optionalIso = (value: Date | string | null) => value ? iso(value) : undefined
+const dbDate = (value: string | undefined) => value ? new Date(value) : null
 const recordColumns = `id, patient_id, patient_name, doctor_id, doctor_name, chief_complaint, present_illness,
   diagnosis, status, ai_generated, ai_metadata, review_note, version, submitted_at, reviewed_at,
   reviewed_by, reviewed_by_name, created_at, updated_at`
@@ -88,7 +89,7 @@ async function insertOrders(connection: PoolConnection, record: MedicalRecord) {
       `INSERT INTO medical_orders (id, record_id, order_type, content, status, created_by, created_by_name, stopped_at, stopped_by, stopped_by_name, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE content=VALUES(content), status=VALUES(status), stopped_at=VALUES(stopped_at), stopped_by=VALUES(stopped_by), stopped_by_name=VALUES(stopped_by_name), updated_at=VALUES(updated_at)`,
-      [order.id, record.id, order.type, order.content, order.status, order.createdById, order.createdBy, order.stoppedAt ?? null, order.stoppedById ?? null, order.stoppedBy ?? null, order.createdAt, order.updatedAt],
+      [order.id, record.id, order.type, order.content, order.status, order.createdById, order.createdBy, dbDate(order.stoppedAt), order.stoppedById ?? null, order.stoppedBy ?? null, dbDate(order.createdAt), dbDate(order.updatedAt)],
     )
   }
 }
@@ -97,7 +98,7 @@ async function insertReviews(connection: PoolConnection, record: MedicalRecord) 
   for (const review of record.reviewHistory) {
     await connection.execute(
       'INSERT IGNORE INTO record_reviews (id, record_id, decision, reviewer_id, reviewer_name, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [review.id, record.id, review.decision, review.reviewerId, review.reviewer, review.note, review.createdAt],
+      [review.id, record.id, review.decision, review.reviewerId, review.reviewer, review.note, dbDate(review.createdAt)],
     )
   }
 }
@@ -134,7 +135,7 @@ export function createRecordRepository(pool: Pool): RecordRepository {
         await connection.execute(
           `INSERT INTO medical_records (id, patient_id, patient_name, doctor_id, doctor_name, chief_complaint, present_illness, diagnosis, status, ai_generated, ai_metadata, version, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [record.id, record.patientId, record.patientName, record.doctorId, record.doctor, record.chiefComplaint, record.presentIllness, record.diagnosis, record.status, record.aiGenerated, record.aiMetadata ? JSON.stringify(record.aiMetadata) : null, record.version, record.createdAt, record.updatedAt],
+          [record.id, record.patientId, record.patientName, record.doctorId, record.doctor, record.chiefComplaint, record.presentIllness, record.diagnosis, record.status, record.aiGenerated, record.aiMetadata ? JSON.stringify(record.aiMetadata) : null, record.version, dbDate(record.createdAt), dbDate(record.updatedAt)],
         )
         await insertOrders(connection, record)
       })
@@ -144,7 +145,7 @@ export function createRecordRepository(pool: Pool): RecordRepository {
         const [result] = await connection.execute<ResultSetHeader>(
           `UPDATE medical_records SET chief_complaint=?, present_illness=?, diagnosis=?, status=?, ai_generated=?, ai_metadata=?, review_note=?, version=?, submitted_at=?, reviewed_at=?, reviewed_by=?, reviewed_by_name=?, updated_at=?
            WHERE id=? AND version=?`,
-          [record.chiefComplaint, record.presentIllness, record.diagnosis, record.status, record.aiGenerated, record.aiMetadata ? JSON.stringify(record.aiMetadata) : null, record.reviewNote ?? null, record.version, record.submittedAt ?? null, record.reviewedAt ?? null, record.reviewedById ?? null, record.reviewedBy ?? null, record.updatedAt, record.id, expectedVersion],
+          [record.chiefComplaint, record.presentIllness, record.diagnosis, record.status, record.aiGenerated, record.aiMetadata ? JSON.stringify(record.aiMetadata) : null, record.reviewNote ?? null, record.version, dbDate(record.submittedAt), dbDate(record.reviewedAt), record.reviewedById ?? null, record.reviewedBy ?? null, dbDate(record.updatedAt), record.id, expectedVersion],
         )
         if (result.affectedRows !== 1) return false
         await insertOrders(connection, record)
