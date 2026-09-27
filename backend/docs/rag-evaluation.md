@@ -1,6 +1,6 @@
 # RAG Evaluation
 
-The benchmark in `src/rag/evaluation-cases.ts` contains eight in-scope requirements questions and one out-of-scope medication-dose question. Relevant documents and slides are explicitly labeled so reviewers can inspect the ground truth. The answer generator never grades itself.
+The benchmark in `src/rag/evaluation-cases.ts` contains eleven in-scope questions and one out-of-scope medication-dose question. It covers project requirements, CDC older-adult fall guidance, and fact retrieval from a de-identified Synthea record. Relevant documents and source locations are explicitly labeled so reviewers can inspect the ground truth. The answer generator never grades itself.
 
 ## Metrics
 
@@ -16,6 +16,8 @@ The benchmark in `src/rag/evaluation-cases.ts` contains eight in-scope requireme
 - **Error rate:** failed evaluation requests divided by all evaluation requests.
 
 ## Reference Run
+
+The table below is the pre-expansion baseline and remains here for comparison with later corpus runs.
 
 Run date: 2026-09-24. Corpus: 3 documents, 272 stored fragments. Evaluation set: 8 retrieval questions and 1 out-of-scope question.
 
@@ -37,6 +39,22 @@ Generation reference run with Doubao Seed 2.0 Lite:
 | Generation latency P50 | 8.2 s |
 | Generation latency P95 | 12.1 s |
 | Error rate | 0.0% |
+
+## Expanded Corpus Run
+
+Run date: 2026-09-27. Corpus: 12 documents and 416 stored fragments, including one CDC public-domain guide and eight de-identified Synthea records. Evaluation set: 11 retrieval questions and 1 out-of-scope question. Because the evaluation set was expanded, compare this run with the reference run directionally rather than as a controlled before-and-after experiment.
+
+| Metric | Fragment baseline | Source-location aggregation |
+| --- | ---: | ---: |
+| Precision@8 | 23.9% | 27.3% |
+| Recall@8 | 87.9% | 100.0% |
+| MRR@8 | 88.6% | 93.9% |
+| nDCG@8 | 81.9% | 88.7% |
+| Retrieval latency P50 | - | 140 ms |
+| Retrieval latency P95 | - | 230 ms |
+| Error rate | - | 0.0% |
+
+The evaluator also emits per-case metrics so aggregate improvements cannot hide regressions in a specific workflow. Generation metrics were not rerun for this corpus because that operation sends retrieved internal project passages to the configured external model and requires separate informed approval.
 
 ## Interpretation Limits
 

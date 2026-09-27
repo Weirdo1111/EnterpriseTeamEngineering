@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "cdc-steadi-pocket-guide",
+      "title": "Preventing Falls in Older Patients: Pocket Guide",
+      "publisher": "U.S. Centers for Disease Control and Prevention",
+      "category": "geriatric-clinical-guidance",
+      "sourceUrl": "https://stacks.cdc.gov/view/cdc/81518",
+      "downloadUrl": "https://stacks.cdc.gov/view/cdc/81518/cdc_81518_DS1.pdf",
+      "licenseName": "Public Domain",
+      "licenseUrl": "https://stacks.cdc.gov/view/cdc/81518",
+      "synthetic": false,
+      "localPath": "cdc/steadi-falls-pocket-guide.pdf"
+    },
+    {
+      "id": "synthea-older-adults",
+      "title": "Synthea Older Adult Synthetic Health Records",
+      "publisher": "The MITRE Corporation / Synthea",
+      "category": "synthetic-patient-records",
+      "sourceUrl": "https://synthetichealth.github.io/downloads.html",
+      "downloadUrl": "https://synthetichealth.github.io/synthea-sample-data/downloads/latest/synthea_sample_data_fhir_latest.zip",
+      "licenseName": "Synthetic data unrestricted; generator Apache-2.0",
+      "licenseUrl": "https://github.com/synthetichealth/synthea/blob/master/LICENSE",
+      "synthetic": true,
+      "localPath": "synthea",
+      "selection": { "minimumAge": 65, "maximumPatients": 8 }
+    }
+  ]
+}

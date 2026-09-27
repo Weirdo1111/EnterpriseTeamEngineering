@@ -74,6 +74,7 @@ try {
   const retrievalLatency: number[] = []
   const generationLatency: number[] = []
   const answerScores: ReturnType<typeof answerMetrics>[] = []
+  const caseResults: { id: string; baseline: ReturnType<typeof retrievalMetrics>; optimized: ReturnType<typeof retrievalMetrics> }[] = []
   let errors = 0
 
   for (const test of evaluationCases) {
@@ -84,8 +85,11 @@ try {
       const newRanked = rankSourceGroups(chunks, embedding, 8, test.question)
       retrievalLatency.push(performance.now() - retrievalStart)
       if (test.relevant.length) {
-        add(baseline, retrievalMetrics(oldRanked, test, 8))
-        add(optimized, retrievalMetrics(newRanked, test, 8))
+        const baselineMetrics = retrievalMetrics(oldRanked, test, 8)
+        const optimizedMetrics = retrievalMetrics(newRanked, test, 8)
+        add(baseline, baselineMetrics)
+        add(optimized, optimizedMetrics)
+        caseResults.push({ id: test.id, baseline: baselineMetrics, optimized: optimizedMetrics })
       }
       if (generate) {
         const context = newRanked.map(({ chunk }, index) => `[${index + 1}] ${chunk.title}${chunk.location ? `, ${chunk.location}` : ''}\n${chunk.content}`).join('\n\n')
@@ -105,6 +109,7 @@ try {
     corpus: { documents: new Set(chunks.map(chunk => chunk.documentId)).size, chunks: chunks.length, evaluationCases: evaluationCases.length },
     retrievalBaseline: average(baseline),
     retrievalOptimized: average(optimized),
+    caseResults,
     retrievalLatencyMs: { p50: Math.round(percentile(retrievalLatency, 0.5)), p95: Math.round(percentile(retrievalLatency, 0.95)) },
     errorRate: errors / evaluationCases.length,
   }

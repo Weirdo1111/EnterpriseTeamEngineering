@@ -91,7 +91,7 @@ AI_EMBEDDING_MODEL=doubao-embedding-vision-251215
 AI_EMBEDDING_DIMENSIONS=1024
 ```
 
-After applying migrations and building the backend, import PDF, PPTX, or DOCX documents:
+After applying migrations and building the backend, import PDF, PPTX, DOCX, or Synthea FHIR R4 JSON documents:
 
 ```bash
 npm run build
@@ -99,6 +99,19 @@ npm run ingest -- "C:\path\requirements.pptx" "C:\path\guide.pdf"
 ```
 
 The importer stores only extracted text, citation metadata, and vectors in MariaDB. Original files and local paths are not copied into the database. Re-importing the same file hash replaces its chunks. Authenticated clinicians can query `POST /api/rag/query`; all queries are audited. If the chat model is rate limited, the endpoint returns ranked source evidence with `generationMode: "retrieval-only"` instead of inventing an answer.
+
+### Curated open datasets
+
+The repository includes a reviewable source catalog at `data/dataset-catalog.json`. Fetch the allowlisted CDC STEADI public-domain guide and eight Synthea synthetic records for adults aged 65 or older:
+
+```bash
+npm run datasets:fetch
+npm run migrate
+npm run build
+npm run datasets:ingest
+```
+
+Downloaded files are gitignored; the fetch receipt records checksums locally. The FHIR importer excludes names, addresses, contact details, identifiers, and exact birth dates before embedding. It stores publisher, source URL, license, category, and synthetic-data status alongside each document. `AI_EMBED_DELAY_MS` defaults to 1200 ms to reduce embedding RPM pressure and can be tuned for the provider quota.
 
 Run the reviewable retrieval benchmark, or include answer generation metrics:
 

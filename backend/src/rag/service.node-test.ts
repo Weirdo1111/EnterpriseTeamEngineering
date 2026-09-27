@@ -24,6 +24,14 @@ test('groups fragments from the same source location into one result', () => {
   assert.match(ranked[0]!.chunk.content, /JWT authentication\nRBAC authorization/)
 })
 
+test('uses source metadata in hybrid lexical ranking', () => {
+  const records = [
+    { ...chunks[0]!, id: 'older', title: 'Synthetic clinical record age 95', content: 'Recorded medications', embedding: [1, 0] },
+    { ...chunks[0]!, id: 'younger', title: 'Synthetic clinical record age 65', content: 'Recorded medications', embedding: [1, 0] },
+  ]
+  assert.equal(rankSourceGroups(records, [1, 0], 2, 'medications for age 95')[0]?.chunk.id, 'older')
+})
+
 test('returns generated text with traceable sources', async () => {
   const service = createRagService({ chunks: async () => chunks, embed: async () => [0, 1], answer: async (_question, context) => `Based on ${context.includes('Patient management') ? '[1]' : 'missing'}` })
   const result = await service.ask('What is required for patients?')

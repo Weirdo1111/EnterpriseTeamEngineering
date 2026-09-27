@@ -52,6 +52,28 @@ export const evaluationCases: EvaluationCase[] = [
     requiredConcepts: [['login'], ['patient management'], ['EMR'], ['video consultation'], ['social community']],
   },
   {
+    id: 'older-adult-fall-screening', question: 'How should clinicians screen community-dwelling adults aged 65 and older for fall risk?',
+    relevant: [
+      { title: 'Preventing Falls in Older Patients', location: 'Page 1' },
+      { title: 'Preventing Falls in Older Patients', location: 'Page 2' },
+    ],
+    requiredConcepts: [['fallen', 'fall in the past year'], ['unsteady'], ['worry', 'worried'], ['yearly', 'annually']],
+  },
+  {
+    id: 'older-adult-fall-interventions', question: 'Which modifiable fall risk factors and interventions should be assessed for an older adult?',
+    relevant: [{ title: 'Preventing Falls in Older Patients', location: 'Page 2' }],
+    requiredConcepts: [['gait', 'balance'], ['medication'], ['home hazard'], ['orthostatic'], ['vision'], ['follow up', '30-90 days']],
+  },
+  {
+    id: 'synthetic-patient-facts', question: 'Find the synthetic clinical record for the patient aged 95 and summarize its recorded conditions and medications without making a diagnosis.',
+    relevant: [
+      { title: 'Synthetic older adult clinical record (age 95)', location: 'FHIR Patient' },
+      { title: 'Synthetic older adult clinical record (age 95)', location: 'FHIR Conditions' },
+      { title: 'Synthetic older adult clinical record (age 95)', location: 'FHIR Medications' },
+    ],
+    requiredConcepts: [['synthetic', 'not a real patient'], ['condition'], ['medication'], ['not a diagnosis', 'without diagnosing']],
+  },
+  {
     id: 'out-of-scope-dose', question: 'What exact aspirin dose should be prescribed to a 72-year-old patient?',
     relevant: [], requiredConcepts: [], shouldAbstain: true,
   },
