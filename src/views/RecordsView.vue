@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { allergyText } from '@/utils/patients'
 import { computed, onMounted, reactive, shallowRef, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Archive, Download, Edit3, Plus, Save, Send, Sparkles } from '@lucide/vue'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -12,6 +12,7 @@ import { downloadText } from '@/utils/export'
 import type { MedicalOrder, MedicalRecord } from '@/types/clinical'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const clinicalStore = useClinicalStore()
 const requestedRecord = typeof route.query.record === 'string' ? route.query.record : ''
@@ -62,15 +63,9 @@ async function saveRecord(submit = false) {
   finally { busy.value = false }
 }
 
-async function generateRecord() {
+function generateRecord() {
   if (!canCreate.value) return
-  busy.value = true
-  try {
-    const record = await clinicalStore.createAiRecord(actor.value)
-    selectRecord(record)
-    ElMessage.success('AI draft generated. Review each item.')
-  } catch (error) { errorMessage(error) }
-  finally { busy.value = false }
+  router.push({ path: '/ai-assistant', query: { task: 'emr', patient: selectedRecord.value.patientId } })
 }
 
 function openOrderDialog(order?: MedicalOrder) {
@@ -204,7 +199,7 @@ function recordAllergyText(patientId: string) {
           </div>
 
           <aside class="review-column">
-            <section v-if="selectedRecord.aiGenerated" class="assist-warning"><Sparkles :size="17" /><div><strong>AI-generated Draft</strong><span>Verify patient details, diagnosis, and every order before submission</span><ul v-if="selectedRecord.aiMetadata?.safetyWarnings.length"><li v-for="warning in selectedRecord.aiMetadata.safetyWarnings" :key="warning">{{ warning }}</li></ul></div></section>
+            <section v-if="selectedRecord.aiGenerated" class="assist-warning"><Sparkles :size="17" /><div><strong>Assistant-prepared Draft</strong><span>{{ selectedRecord.aiMetadata?.generator === 'ark-synthetic-source-linked-v1' ? 'Model summary of a synthetic consultation' : 'Recorded-text extraction' }}. Resolve flagged items, assess the diagnosis, and review orders before submission.</span><ul v-if="selectedRecord.aiMetadata?.safetyWarnings.length"><li v-for="warning in selectedRecord.aiMetadata.safetyWarnings" :key="warning">{{ warning }}</li></ul><div v-if="selectedRecord.aiMetadata?.followUpItems?.length" class="assist-follow-up"><b>Recorded follow-up</b><p v-for="item in selectedRecord.aiMetadata.followUpItems" :key="item">{{ item }}</p></div><details v-if="selectedRecord.aiMetadata?.evidence?.length"><summary>Source excerpts</summary><p v-for="(item, index) in selectedRecord.aiMetadata.evidence" :key="index"><b>{{ item.sourceId }}</b> {{ item.quote }}</p></details></div></section>
             <section class="risk-section"><h3>Order Risk Alert</h3><p>Patient allergies: {{ recordAllergyText(selectedRecord.patientId) }}. Confirm again before prescribing related medication.</p></section>
             <section class="review-section">
               <h3>Tiered Review</h3>
@@ -253,6 +248,8 @@ function recordAllergyText(patientId: string) {
 .assist-warning strong { font-size: 12px; }
 .assist-warning span { margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .assist-warning ul { margin: 8px 0 0; padding-left: 17px; color: var(--text); font-size: 10px; line-height: 1.55; }
+.assist-warning details { margin-top: 10px; color: var(--text); font-size: 11px; }.assist-warning summary { cursor: pointer; font-weight: 600; }.assist-warning details p { margin: 7px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
+.assist-follow-up { margin-top: 10px; padding-top: 10px; border-top: 1px solid #c6d9d6; color: var(--text); font-size: 11px; }.assist-follow-up p { margin: 5px 0 0; line-height: 1.5; }
 .risk-section, .review-section { padding-top: 2px; }
 .risk-section h3, .review-section h3, .orders-heading h3 { margin: 0; color: var(--text-strong); font-size: 14px; }
 .risk-section p { margin: 8px 0 0; color: #76531c; font-size: 12px; line-height: 1.7; }

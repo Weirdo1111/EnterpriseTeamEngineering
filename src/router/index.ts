@@ -36,7 +36,7 @@ const router = createRouter({
           path: 'consultation',
           name: 'consultation',
           component: () => import('@/views/ConsultationView.vue'),
-          meta: { title: 'Online Consultation' },
+          meta: { title: 'Patient Online Visit' },
         },
         {
           path: 'records',
@@ -54,7 +54,7 @@ const router = createRouter({
           path: 'remote-consultations',
           name: 'remote-consultations',
           component: () => import('@/views/RemoteConsultationsView.vue'),
-          meta: { title: 'Remote Consultation' },
+          meta: { title: 'Physician Group Consultation' },
         },
         {
           path: 'health-management',

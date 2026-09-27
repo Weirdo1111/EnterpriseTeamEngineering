@@ -1,5 +1,5 @@
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
-import type { MedicalOrder, MedicalRecord, RecordRepository, RecordReview } from './types.js'
+import type { MedicalOrder, MedicalRecord, RecordAudit, RecordRepository, RecordReview } from './types.js'
 
 type RecordRow = RowDataPacket & {
   id: string; patient_id: string; patient_name: string; doctor_id: string; doctor_name: string
@@ -103,6 +103,15 @@ async function insertReviews(connection: PoolConnection, record: MedicalRecord) 
   }
 }
 
+async function insertAudit(connection: PoolConnection, audit?: RecordAudit) {
+  if (!audit) return
+  await connection.execute(
+    'INSERT INTO audit_logs (user_id, user_name, role, action, resource_type, resource_id, result, ip_address, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [audit.userId, audit.userName, audit.role, audit.action, 'medical_record', audit.resourceId, audit.result,
+      audit.ipAddress ?? null, audit.details ? JSON.stringify(audit.details) : null],
+  )
+}
+
 export function createRecordRepository(pool: Pool): RecordRepository {
   async function transaction<T>(operation: (connection: PoolConnection) => Promise<T>) {
     const connection = await pool.getConnection()
@@ -130,7 +139,7 @@ export function createRecordRepository(pool: Pool): RecordRepository {
       const children = await childRows(pool, [id])
       return aggregate(rows, children.orders, children.reviews)[0]!
     },
-    async create(record) {
+    async create(record, audit) {
       await transaction(async connection => {
         await connection.execute(
           `INSERT INTO medical_records (id, patient_id, patient_name, doctor_id, doctor_name, chief_complaint, present_illness, diagnosis, status, ai_generated, ai_metadata, version, created_at, updated_at)
@@ -138,9 +147,10 @@ export function createRecordRepository(pool: Pool): RecordRepository {
           [record.id, record.patientId, record.patientName, record.doctorId, record.doctor, record.chiefComplaint, record.presentIllness, record.diagnosis, record.status, record.aiGenerated, record.aiMetadata ? JSON.stringify(record.aiMetadata) : null, record.version, dbDate(record.createdAt), dbDate(record.updatedAt)],
         )
         await insertOrders(connection, record)
+        await insertAudit(connection, audit)
       })
     },
-    async save(record, expectedVersion) {
+    async save(record, expectedVersion, audit) {
       return transaction(async connection => {
         const [result] = await connection.execute<ResultSetHeader>(
           `UPDATE medical_records SET chief_complaint=?, present_illness=?, diagnosis=?, status=?, ai_generated=?, ai_metadata=?, review_note=?, version=?, submitted_at=?, reviewed_at=?, reviewed_by=?, reviewed_by_name=?, updated_at=?
@@ -150,6 +160,7 @@ export function createRecordRepository(pool: Pool): RecordRepository {
         if (result.affectedRows !== 1) return false
         await insertOrders(connection, record)
         await insertReviews(connection, record)
+        await insertAudit(connection, audit)
         return true
       })
     },

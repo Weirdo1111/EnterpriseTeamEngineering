@@ -172,6 +172,7 @@ export function createMockMedicalRecordService(options: {
       return mutate(id, expectedVersion, record => {
         assertEditable(record)
         validateClinicalFields(record)
+        if (record.aiGenerated && record.diagnosis.trim() === 'Pending physician assessment') throw new Error('Enter a physician-assessed preliminary diagnosis before submission.')
         if (!record.orders.some(order => order.status === 'active')) throw new Error('At least one active medical order is required before submission.')
         record.status = 'pending'
         record.submittedAt = now()

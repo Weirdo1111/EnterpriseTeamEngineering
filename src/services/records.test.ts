@@ -162,6 +162,7 @@ describe('clinical AI draft adapter', () => {
   it('adds escalation guidance for a critical patient', async () => {
     const result = await clinicalAiService.generateRecordDraft({ patient: patientsSeed[2]!, references: [] })
     expect(result.safetyWarnings[0]).toContain('High-risk patient')
-    expect(result.orders.some(order => order.content.includes('in-person'))).toBe(true)
+    expect(result.orders).toEqual([])
+    expect(result.diagnosis).toBe('Pending physician assessment')
   })
 })

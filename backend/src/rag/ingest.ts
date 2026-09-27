@@ -92,20 +92,30 @@ try {
     const parsed = await parseDocument(path, extension, bytes)
     if (!parsed.chunks.length) throw new Error('No searchable text was extracted from the document.')
     const title = source?.id === 'cdc-steadi-pocket-guide' ? source.title : parsed.title
-    await repository.beginDocument({ id, title, filename, sourceType: extension === 'json' ? 'fhir-r4' : extension, hash, ...metadata(source) })
+    const document: KnowledgeDocumentInput = { id, title, filename, sourceType: extension === 'json' ? 'fhir-r4' : extension, hash, ...metadata(source) }
+    const job = await repository.prepareIngestion(document, parsed.chunks.length)
+    if (job.status === 'ready') {
+      console.log(`Already ready: ${filename} (${job.completedChunks} chunks)`)
+      continue
+    }
     try {
-      const chunks: KnowledgeChunkInput[] = []
+      const staged = await repository.stagedChunkIndexes(job.id)
       for (let index = 0; index < parsed.chunks.length; index += 1) {
         const chunk = parsed.chunks[index]!
+        if (staged.has(index)) {
+          console.log(`  Resuming ${index + 1}/${parsed.chunks.length} (${chunk.location}, checkpoint exists)`)
+          continue
+        }
         console.log(`  Embedding ${index + 1}/${parsed.chunks.length} (${chunk.location})`)
-        chunks.push({ index, location: chunk.location, heading: chunk.heading, content: chunk.content, embedding: await ark.embed(chunk.content), model: config.embeddingModel })
+        const stagedChunk: KnowledgeChunkInput = { index, location: chunk.location, heading: chunk.heading, content: chunk.content, embedding: await ark.embed(chunk.content), model: config.embeddingModel }
+        await repository.stageIngestionChunk(job.id, stagedChunk)
         if (embedDelayMs && index < parsed.chunks.length - 1) await wait(embedDelayMs)
       }
-      await repository.saveChunks(id, chunks)
-      console.log(`Ready: ${filename} (${chunks.length} chunks)`)
+      await repository.completeIngestion(job.id, document)
+      console.log(`Ready: ${filename} (${parsed.chunks.length} chunks)`)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      await repository.failDocument(id, message)
+      await repository.failIngestion(job.id, message)
       throw error
     }
   }

@@ -65,9 +65,21 @@ PATCH  /api/records/:id/orders/:orderId
 POST   /api/records/:id/orders/:orderId/stop
 POST   /api/records/:id/reviews
 POST   /api/ai/record-draft
+POST   /api/ai/consultation-summary
+POST   /api/ai/similar-cases
+POST   /api/ai/order-check
+GET    /api/rag/documents
+GET    /api/rag/ingestion-jobs
+POST   /api/rag/query
 ```
 
 Every mutation includes `expectedVersion`. A stale version returns HTTP 409 rather than overwriting another session. The backend enforces role permissions and state transitions independently of the frontend.
+
+Ordinary doctors can only list, read, or modify records they created. Senior doctors and administrators can read all records, while only senior doctors can review or archive them. Successful record/order mutations and their audit entries commit in the same database transaction. Run the optional MariaDB transaction test with `npm run test:integration` after seeding `doctor.demo`.
+
+The doctor's AI Assistant has four workflows: editable record draft, source-faithful consultation summary, synthetic similar-case retrieval with relevant guidance, and proposed-order review. The record draft does not create diagnoses or orders automatically; an assistant draft cannot be submitted while its diagnosis remains `Pending physician assessment`. The order checker accepts structured ingredient, approval number, route, dose, frequency, current medicines, allergies, and eGFR. It detects exact ingredient allergies and evaluates interaction, cross-allergy, and daily-dose rules only from an explicitly configured, reviewed Mainland China catalog. No real medication catalog is bundled, so the default result is incomplete and never clears a prescription. See [medication knowledge integration](docs/medication-knowledge.md). Similar-case records are synthetic examples, not treatment evidence.
+
+For the three bundled demo consultations, the record-draft and summary routes can call the Ark chat model to produce concise text with source excerpts. Only server-owned synthetic text is sent: the patient ID, fictional name, consultation ID, complaint, history, and every message must exactly match the fixture, and physician notes must be empty. Other records stay on the local rule-based path. Invalid model citations, altered measurements, omitted measured statements, and provider failures fall back to recorded text. Creating a record draft is one action in the AI Assistant; the draft still needs physician review, diagnosis, and orders before submission. Real patient data must not be enabled for model generation without an authorized server-side patient repository and organization-approved data-processing controls.
 
 To use the backend from Vite, create a root `.env.local` containing:
 
@@ -98,7 +110,17 @@ npm run build
 npm run ingest -- "C:\path\requirements.pptx" "C:\path\guide.pdf"
 ```
 
-The importer stores only extracted text, citation metadata, and vectors in MariaDB. Original files and local paths are not copied into the database. Re-importing the same file hash replaces its chunks. Authenticated clinicians can query `POST /api/rag/query`; all queries are audited. If the chat model is rate limited, the endpoint returns ranked source evidence with `generationMode: "retrieval-only"` instead of inventing an answer.
+The importer stores only extracted text, citation metadata, and vectors in MariaDB. Original files and local paths are not copied into the database. Each import has a persistent checkpoint in `knowledge_ingestion_jobs`; failed imports resume from stored chunk embeddings, and the previous ready document remains available until the replacement commits atomically. Authenticated clinicians can query `POST /api/rag/query`; all queries are audited. If the chat model is rate limited, the endpoint returns ranked source evidence with `generationMode: "retrieval-only"` instead of inventing an answer.
+
+Queries are isolated by an explicit retrieval scope. Omitting `scope` remains backward-compatible and selects only project documents:
+
+```json
+{ "question": "What is required for medical record review?", "scope": "project" }
+{ "question": "How should fall risk be screened?", "scope": "clinical-guideline" }
+{ "question": "Summarize recorded conditions", "scope": "synthetic-patient", "documentId": "KD-..." }
+```
+
+`synthetic-patient` requires one document ID and retrieves only that patient plus approved clinical guidance. Low-evidence questions and requests for diagnosis, prescriptions, or medication doses return `answerDecision: "abstained"` without calling the chat model. Every response includes `scope`, `evidenceStatus`, and `clinicianReviewRequired`.
 
 ### Curated open datasets
 
@@ -121,3 +143,5 @@ npm run eval:rag -- --generate
 ```
 
 The benchmark definitions and interpretation notes are in `docs/rag-evaluation.md`. It compares the original fragment ranking with source-page aggregation using identical query embeddings and human-authored relevance labels.
+
+See `docs/production-readiness.md` for implemented safety controls, data-source decisions, and the release-blocking work that remains before any commercial or clinical deployment.

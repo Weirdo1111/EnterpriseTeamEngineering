@@ -19,56 +19,50 @@ export function createRecordsRouter(users: UserLookup, secret: string, service: 
 
   function user(res: Response) { return res.locals.user as DbUser }
   const body = (req: Request) => req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {}
+  const context = (req: Request) => ({ ipAddress: req.ip || undefined })
 
-  router.get('/', async (_req, res) => { res.json({ records: await service.list() }) })
-  router.get('/:id', async (req, res) => { res.json({ record: await service.getById(req.params.id!) }) })
+  router.get('/', async (_req, res) => { res.json({ records: await service.list(user(res)) }) })
+  router.get('/:id', async (req, res) => { res.json({ record: await service.getById(req.params.id!, user(res)) }) })
 
   router.post('/', async (req, res) => {
     const current = user(res)
-    const record = await service.create(body(req), current)
-    await audit(req, current, 'Created medical record draft', record.id, record.aiGenerated ? 'Pending Review' : 'Success')
+    const record = await service.create(body(req), current, context(req))
     res.status(201).json({ record })
   })
 
   router.patch('/:id', async (req, res) => {
     const current = user(res)
-    const record = await service.update(req.params.id!, body(req), current)
-    await audit(req, current, 'Updated medical record draft', record.id, 'Success', { version: record.version })
+    const record = await service.update(req.params.id!, body(req), current, context(req))
     res.json({ record })
   })
 
   router.post('/:id/submit', async (req, res) => {
     const current = user(res)
-    const record = await service.submit(req.params.id!, body(req), current)
-    await audit(req, current, 'Submitted medical record for review', record.id, 'Pending Review', { version: record.version })
+    const record = await service.submit(req.params.id!, body(req), current, context(req))
     res.json({ record })
   })
 
   router.post('/:id/orders', async (req, res) => {
     const current = user(res)
-    const record = await service.addOrder(req.params.id!, body(req), current)
-    await audit(req, current, 'Added medical order', record.id, 'Success', { version: record.version })
+    const record = await service.addOrder(req.params.id!, body(req), current, context(req))
     res.status(201).json({ record })
   })
 
   router.patch('/:id/orders/:orderId', async (req, res) => {
     const current = user(res)
-    const record = await service.updateOrder(req.params.id!, req.params.orderId!, body(req), current)
-    await audit(req, current, 'Updated medical order', record.id, 'Success', { orderId: req.params.orderId, version: record.version })
+    const record = await service.updateOrder(req.params.id!, req.params.orderId!, body(req), current, context(req))
     res.json({ record })
   })
 
   router.post('/:id/orders/:orderId/stop', async (req, res) => {
     const current = user(res)
-    const record = await service.stopOrder(req.params.id!, req.params.orderId!, body(req), current)
-    await audit(req, current, 'Stopped medical order', record.id, 'Success', { orderId: req.params.orderId, version: record.version })
+    const record = await service.stopOrder(req.params.id!, req.params.orderId!, body(req), current, context(req))
     res.json({ record })
   })
 
   router.post('/:id/reviews', async (req, res) => {
     const current = user(res)
-    const record = await service.review(req.params.id!, body(req), current)
-    await audit(req, current, `${record.status === 'archived' ? 'Archived' : record.status === 'approved' ? 'Approved' : 'Returned'} medical record`, record.id, record.status === 'returned' ? 'Pending Review' : 'Success', { version: record.version })
+    const record = await service.review(req.params.id!, body(req), current, context(req))
     res.json({ record })
   })
 

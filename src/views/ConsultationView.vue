@@ -38,7 +38,7 @@ function selectSession(id: string) {
 function startSession() {
   if (!canOperate.value) return
   clinicalStore.startConsultation(selectedSession.value.id, actor.value)
-  ElMessage.success('Consultation accepted. The record is now saving automatically.')
+  ElMessage.success('Patient visit accepted.')
 }
 
 function sendMessage() {
@@ -66,7 +66,7 @@ function refreshSummary() {
 function finishSession() {
   if (!canOperate.value) return
   clinicalStore.completeConsultation(selectedSession.value.id, actor.value)
-  ElMessage.success('Consultation completed and record saved.')
+  ElMessage.success('Patient visit completed in this demo session.')
 }
 
 async function generateRecord() {
@@ -92,14 +92,14 @@ function exportSession() {
 
 <template>
   <div class="view-stack">
-    <PageHeader title="Online Consultation" description="Handle online patient consultations; messages and uploaded documents are saved automatically">
+    <PageHeader title="Patient Online Visit" description="Patient messages and visit records">
       <el-button :icon="History" @click="historyVisible = true">History</el-button>
       <el-button :icon="Download" @click="exportSession">Export Current Record</el-button>
     </PageHeader>
 
     <section class="consultation-layout">
       <article class="panel session-panel">
-        <div class="panel-header"><div><h2 class="panel-title">Consultation Queue</h2><p class="panel-subtitle">{{ activeSessions.length }} sessions to process</p></div></div>
+        <div class="panel-header"><div><h2 class="panel-title">Patient Visit Queue</h2><p class="panel-subtitle">{{ activeSessions.length }} sessions to process</p></div></div>
         <div class="session-list">
           <button v-for="session in activeSessions" :key="session.id" type="button" :class="{ active: session.id === selectedSession.id }" @click="selectSession(session.id)">
             <span class="session-avatar">{{ session.patientName.slice(-1) }}</span>
@@ -115,7 +115,7 @@ function exportSession() {
           <div><h2 class="panel-title">{{ selectedSession.patientName }} · {{ selectedSession.complaint }}</h2><p class="panel-subtitle">Session ID {{ selectedSession.id }}</p></div>
           <div class="session-actions">
             <el-button v-if="selectedSession.status === 'waiting'" :icon="Play" size="small" type="primary" :disabled="!canOperate" @click="startSession">Accept</el-button>
-            <el-button v-else-if="selectedSession.status === 'active'" size="small" :disabled="!canOperate" @click="finishSession">End Consultation</el-button>
+            <el-button v-else-if="selectedSession.status === 'active'" size="small" :disabled="!canOperate" @click="finishSession">End Patient Visit</el-button>
             <el-tag v-else type="info" effect="plain">Completed</el-tag>
           </div>
         </div>

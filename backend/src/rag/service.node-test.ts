@@ -38,6 +38,24 @@ test('returns generated text with traceable sources', async () => {
   assert.equal(result.answer, 'Based on [1]')
   assert.equal(result.sources[0]?.location, 'Page 3')
   assert.equal(result.generationMode, 'generated')
+  assert.equal(result.citations[0]?.sourceId, result.sources[0]?.id)
+  assert.ok(result.traceId)
+})
+
+test('downgrades generated text without valid source citations', async () => {
+  const service = createRagService({ chunks: async () => chunks, embed: async () => [1, 0], answer: async () => 'Unsupported generated claim' })
+  const result = await service.ask('What authentication is required?')
+  assert.equal(result.answerDecision, 'retrieval-only')
+  assert.equal(result.generationMode, 'retrieval-only')
+  assert.deepEqual(result.citations, [])
+  assert.match(result.answer, /did not contain verifiable citations/)
+})
+
+test('downgrades an answer containing an out-of-range citation', async () => {
+  const service = createRagService({ chunks: async () => chunks, embed: async () => [1, 0], answer: async () => 'Valid fact [1], invented source [99].' })
+  const result = await service.ask('What authentication is required?')
+  assert.equal(result.answerDecision, 'retrieval-only')
+  assert.deepEqual(result.citations, [])
 })
 
 test('returns retrieved evidence when the generation model is rate limited', async () => {
@@ -45,4 +63,49 @@ test('returns retrieved evidence when the generation model is rate limited', asy
   const result = await service.ask('What authentication is required?')
   assert.equal(result.generationMode, 'retrieval-only')
   assert.match(result.answer, /JWT authentication/)
+})
+
+test('isolates project, guideline, and one synthetic patient retrieval scope', async () => {
+  const scoped = [
+    { ...chunks[0]!, id: 'project', category: 'project-documents', content: 'Project RBAC requirement' },
+    { ...chunks[0]!, id: 'guide', documentId: 'guide-doc', category: 'geriatric-clinical-guidance', content: 'Fall risk guideline' },
+    { ...chunks[0]!, id: 'patient-a', documentId: 'patient-a-doc', category: 'synthetic-patient-records', synthetic: true, content: 'Synthetic patient A condition' },
+    { ...chunks[0]!, id: 'patient-b', documentId: 'patient-b-doc', category: 'synthetic-patient-records', synthetic: true, content: 'Synthetic patient B condition' },
+  ]
+  const contexts: string[] = []
+  const service = createRagService({ chunks: async () => scoped, embed: async () => [1, 0], answer: async (_question, context) => { contexts.push(context); return '[1]' } })
+  await service.ask({ question: 'requirements', scope: 'project' })
+  await service.ask({ question: 'falls', scope: 'clinical-guideline' })
+  await service.ask({ question: 'patient condition', scope: 'synthetic-patient', documentId: 'patient-a-doc' })
+  assert.match(contexts[0]!, /Project RBAC/)
+  assert.doesNotMatch(contexts[0]!, /Fall risk|patient A/)
+  assert.match(contexts[1]!, /Fall risk guideline/)
+  assert.doesNotMatch(contexts[1]!, /Project RBAC|patient A/)
+  assert.match(contexts[2]!, /patient A condition|Fall risk guideline/)
+  assert.doesNotMatch(contexts[2]!, /patient B condition|Project RBAC/)
+})
+
+test('requires a patient document and abstains from clinical diagnosis or weak evidence', async () => {
+  const scoped = [
+    { ...chunks[0]!, id: 'guide', documentId: 'guide-doc', category: 'geriatric-clinical-guidance', content: 'Fall risk guideline' },
+    { ...chunks[0]!, id: 'patient', documentId: 'patient-doc', category: 'synthetic-patient-records', synthetic: true, content: 'Synthetic medication history' },
+  ]
+  let generated = false
+  const service = createRagService({ chunks: async () => scoped, embed: async () => [0, 1], answer: async () => { generated = true; return 'unsafe' }, minimumScore: 0.5 })
+  await assert.rejects(() => service.ask({ question: 'history', scope: 'synthetic-patient' }), /documentId is required/)
+  await assert.rejects(() => service.ask({ question: 'history', scope: 'clinical-guideline', documentId: 'patient-doc' }), /only valid for synthetic-patient/)
+  const unsafe = await service.ask({ question: 'What exact dose should I prescribe?', scope: 'clinical-guideline' })
+  assert.equal(unsafe.answerDecision, 'abstained')
+  const weak = await service.ask({ question: 'unrelated evidence', scope: 'clinical-guideline' })
+  assert.equal(weak.evidenceStatus, 'insufficient')
+  assert.equal(generated, false)
+})
+
+test('allows factual synthetic summaries that explicitly avoid diagnosis', async () => {
+  const scoped = [{ ...chunks[0]!, documentId: 'patient-doc', category: 'synthetic-patient-records', synthetic: true, content: 'Synthetic medication history' }]
+  let generated = false
+  const service = createRagService({ chunks: async () => scoped, embed: async () => [1, 0], answer: async () => { generated = true; return 'Factual summary [1]' } })
+  const result = await service.ask({ question: 'Summarize the record without making a diagnosis', scope: 'synthetic-patient', documentId: 'patient-doc' })
+  assert.equal(result.answerDecision, 'answered')
+  assert.equal(generated, true)
 })

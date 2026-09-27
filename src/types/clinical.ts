@@ -96,6 +96,8 @@ export interface AiGenerationMetadata {
   generatedAt: string
   safetyWarnings: string[]
   sourceIds: string[]
+  evidence?: { field: string; sourceId: string; quote: string }[]
+  followUpItems?: string[]
 }
 
 export interface MedicalRecord {
@@ -147,6 +149,7 @@ export interface RemoteConsultation {
   reason: string
   requester: string
   experts: string[]
+  expertOpinions: { expert: string; text: string; recordedBy: string; recordedAt: string }[]
   materials: string[]
   status: RemoteConsultationStatus
   scheduledAt: string

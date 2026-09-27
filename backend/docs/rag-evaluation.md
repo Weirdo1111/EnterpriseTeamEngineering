@@ -1,6 +1,6 @@
 # RAG Evaluation
 
-The benchmark in `src/rag/evaluation-cases.ts` contains eleven in-scope questions and one out-of-scope medication-dose question. It covers project requirements, CDC older-adult fall guidance, and fact retrieval from a de-identified Synthea record. Relevant documents and source locations are explicitly labeled so reviewers can inspect the ground truth. The answer generator never grades itself.
+The benchmark in `src/rag/evaluation-cases.ts` contains 29 in-scope questions and one out-of-scope medication-dose question. It covers project requirements, CDC older-adult fall guidance, and fact retrieval from de-identified Synthea records. Relevant documents and source locations are explicitly labeled so reviewers can inspect the ground truth. The answer generator never grades itself.
 
 ## Metrics
 
@@ -42,19 +42,21 @@ Generation reference run with Doubao Seed 2.0 Lite:
 
 ## Expanded Corpus Run
 
-Run date: 2026-09-27. Corpus: 12 documents and 416 stored fragments, including one CDC public-domain guide and eight de-identified Synthea records. Evaluation set: 11 retrieval questions and 1 out-of-scope question. Because the evaluation set was expanded, compare this run with the reference run directionally rather than as a controlled before-and-after experiment.
+Run date: 2026-09-27. Corpus: 12 documents and 416 stored fragments, including one CDC public-domain guide and eight de-identified Synthea records. Evaluation set: 29 retrieval questions and 1 out-of-scope question. Because the evaluation set and retrieval scoping changed, compare this run with the reference run directionally rather than as a controlled before-and-after experiment.
 
-| Metric | Fragment baseline | Source-location aggregation |
+| Metric | Fragment baseline | Scoped source-location aggregation |
 | --- | ---: | ---: |
-| Precision@8 | 23.9% | 27.3% |
-| Recall@8 | 87.9% | 100.0% |
-| MRR@8 | 88.6% | 93.9% |
-| nDCG@8 | 81.9% | 88.7% |
-| Retrieval latency P50 | - | 140 ms |
-| Retrieval latency P95 | - | 230 ms |
+| Precision@5 | 35.2% | 37.9% |
+| Recall@5 | 87.4% | 93.7% |
+| Precision@8 | 23.7% | 25.4% |
+| Recall@8 | 92.5% | 98.3% |
+| MRR@8 | 92.2% | 96.0% |
+| nDCG@8 | 87.0% | 92.2% |
+| Retrieval latency P50 | - | 650 ms |
+| Retrieval latency P95 | - | 1,532 ms |
 | Error rate | - | 0.0% |
 
-The evaluator also emits per-case metrics so aggregate improvements cannot hide regressions in a specific workflow. Generation metrics were not rerun for this corpus because that operation sends retrieved internal project passages to the configured external model and requires separate informed approval.
+Scoped Recall@8 is 96.9% for project requirements and 100% for both clinical guidance and synthetic-patient retrieval. Cross-domain contamination is 0% in all three domains. Use `npm run eval:rag -- --details` for per-case results or add `--case=CASE_ID` to debug one case. Generation metrics were not rerun for this corpus because that operation sends retrieved internal project passages to the configured external model and requires separate informed approval.
 
 ## Interpretation Limits
 

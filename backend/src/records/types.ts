@@ -39,7 +39,7 @@ export interface MedicalRecord {
   orders: MedicalOrder[]
   status: RecordStatus
   aiGenerated: boolean
-  aiMetadata?: { generator: string; generatedAt: string; safetyWarnings: string[]; sourceIds: string[] }
+  aiMetadata?: { generator: string; generatedAt: string; safetyWarnings: string[]; sourceIds: string[]; evidence?: { field: string; sourceId: string; quote: string }[]; followUpItems?: string[] }
   reviewNote?: string
   reviewHistory: RecordReview[]
   version: number
@@ -51,10 +51,21 @@ export interface MedicalRecord {
   reviewedById?: string
 }
 
+export interface RecordAudit {
+  userId: string
+  userName: string
+  role: string
+  action: string
+  resourceId: string
+  result: 'Success' | 'Pending Review'
+  ipAddress?: string
+  details?: object
+}
+
 export interface RecordRepository {
   list(): Promise<MedicalRecord[]>
   getById(id: string): Promise<MedicalRecord | null>
-  create(record: MedicalRecord): Promise<void>
-  save(record: MedicalRecord, expectedVersion: number): Promise<boolean>
+  create(record: MedicalRecord, audit?: RecordAudit): Promise<void>
+  save(record: MedicalRecord, expectedVersion: number, audit?: RecordAudit): Promise<boolean>
   transaction?<T>(operation: (connection: PoolConnection) => Promise<T>): Promise<T>
 }

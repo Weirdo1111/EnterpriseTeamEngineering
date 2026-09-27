@@ -1,6 +1,6 @@
 import { patientsSeed } from '@/mocks/patients'
 import { recordsSeed } from '@/mocks/records'
-import { clinicalAiService } from '@/services/clinical-ai'
+import { clinicalAiService, type ClinicalDraftSuggestion } from '@/services/clinical-ai'
 import { patientService, patientStorageWarning } from '@/services/patients'
 import { medicalRecordService } from '@/services/records'
 import { useAuthStore } from '@/stores/auth'
@@ -97,6 +97,7 @@ const remoteSeed: RemoteConsultation[] = [
     reason: 'The patient with COPD has had worsening cough and dyspnea for three days, with home oxygen saturation as low as 91%.',
     requester: 'Dr. Riley Lin',
     experts: ['Qihang Zhao Chief Physician'],
+    expertOpinions: [],
     materials: ['Outpatient-Records-Last-3-Months.pdf', 'Chest-CT-Images.zip', 'Home-Oxygen-Log.xlsx'],
     status: 'accepted',
     scheduledAt: '2026-09-12 14:30',
@@ -110,6 +111,7 @@ const remoteSeed: RemoteConsultation[] = [
     reason: 'Assessment of the rehabilitation plan six months after coronary stent placement.',
     requester: 'Dr. Michael Zhou',
     experts: ['Ning Sun Associate Chief Physician', 'Rehabilitation Therapist He Li'],
+    expertOpinions: [],
     materials: ['Postoperative-Record.pdf', 'Recent-ECG.pdf'],
     status: 'completed',
     scheduledAt: '2026-09-11 15:00',
@@ -344,10 +346,41 @@ export const useClinicalStore = defineStore('clinical', () => {
         generatedAt: suggestion.generatedAt,
         safetyWarnings: suggestion.safetyWarnings,
         sourceIds: suggestion.sourceIds,
+        evidence: suggestion.evidence,
+        followUpItems: suggestion.followUpItems,
       },
     })
     syncRecord(record)
     recordAudit(actor, 'Generated medical record draft with AI', record.id, 'Pending Review')
+    return record
+  }
+
+  async function createAssistantRecord(
+    patientId: string,
+    fields: Pick<MedicalRecord, 'chiefComplaint' | 'presentIllness' | 'diagnosis'>,
+    suggestion: ClinicalDraftSuggestion,
+    actor: AuditActor,
+  ) {
+    const patient = patients.find(item => item.id === patientId)
+    if (!patient) throw new Error('Patient not found.')
+    const record = await medicalRecordService.createDraft({
+      patientId: patient.id,
+      patientName: patient.name,
+      chiefComplaint: fields.chiefComplaint,
+      presentIllness: fields.presentIllness,
+      diagnosis: fields.diagnosis,
+      orders: [],
+      aiMetadata: {
+        generator: suggestion.generator,
+        generatedAt: suggestion.generatedAt,
+        safetyWarnings: suggestion.safetyWarnings,
+        sourceIds: suggestion.sourceIds,
+        evidence: suggestion.evidence,
+        followUpItems: suggestion.followUpItems,
+      },
+    })
+    syncRecord(record)
+    recordAudit(actor, 'Created reviewed assistant record draft', record.id, 'Pending Review')
     return record
   }
 
@@ -408,12 +441,13 @@ export const useClinicalStore = defineStore('clinical', () => {
       patientName: patient.name,
       requester: actor.name,
       experts: [],
+      expertOpinions: [],
       materials: ['Patient-Medical-Record.pdf'],
       status: 'pending',
       opinion: '',
     }
     remoteConsultations.unshift(consultation)
-    recordAudit(actor, 'Start Remote Consultation', consultation.id)
+    recordAudit(actor, 'Requested physician group case review', consultation.id)
     return consultation
   }
 
@@ -421,24 +455,38 @@ export const useClinicalStore = defineStore('clinical', () => {
     const item = remoteConsultations.find((consultation) => consultation.id === id)
     if (!item) return
     item.status = status
-    const action = status === 'accepted' ? 'Accepted remote consultation' : status === 'inProgress' ? 'Started remote consultation' : 'Updated remote consultation'
+    const action = status === 'accepted' ? 'Accepted group case review' : status === 'inProgress' ? 'Started group case review' : 'Updated group case review'
     recordAudit(actor, action, id)
   }
 
   function addRemoteExpert(id: string, expert: string, actor: AuditActor) {
     const item = remoteConsultations.find((consultation) => consultation.id === id)
-    if (!item || item.experts.includes(expert)) return
+    if (!item || item.status === 'completed' || item.experts.includes(expert)) return
     item.experts.push(expert)
-    recordAudit(actor, 'Add Consultation Specialist', id)
+    recordAudit(actor, 'Added group case-review specialist', id)
+  }
+
+  function recordRemoteExpertOpinion(id: string, expert: string, text: string, actor: AuditActor) {
+    const item = remoteConsultations.find((consultation) => consultation.id === id)
+    if (!item || item.status !== 'inProgress') throw new Error('Start the group review before recording contributions.')
+    if (!item.experts.includes(expert) || !text.trim()) throw new Error('Select an invited specialist and enter an opinion.')
+    const contribution = { expert, text: text.trim(), recordedBy: actor.name, recordedAt: displayTime() }
+    const existing = item.expertOpinions.findIndex(opinion => opinion.expert === expert)
+    if (existing < 0) item.expertOpinions.push(contribution)
+    else item.expertOpinions.splice(existing, 1, contribution)
+    recordAudit(actor, 'Recorded group case-review contribution', id)
   }
 
   function completeRemoteConsultation(id: string, opinion: string, actor: AuditActor) {
     const item = remoteConsultations.find((consultation) => consultation.id === id)
-    if (!item) return
+    if (!item || item.status !== 'inProgress') throw new Error('The group review is not in progress.')
+    if (!item.experts.length || item.experts.some(expert => !item.expertOpinions.some(entry => entry.expert === expert))) throw new Error('Record a contribution for each invited specialist before completing the review.')
+    if (!opinion.trim()) throw new Error('Enter the shared case conclusion.')
     item.status = 'completed'
-    item.opinion = opinion
-    item.report = `Patient: ${item.patientName}\nSpecialty: ${item.specialty}\nParticipating specialists: ${item.experts.join(', ') || 'To be completed'}\nConsultation opinion: ${opinion}\nFollow-up plan: The responsible physician will implement the plan based on the patient's current condition and continue follow-up.`
-    recordAudit(actor, 'Completed remote consultation and generated report', id)
+    item.opinion = opinion.trim()
+    const contributions = item.expertOpinions.map(entry => `${entry.expert} (recorded by ${entry.recordedBy}, ${entry.recordedAt}): ${entry.text}`).join('\n')
+    item.report = `Patient: ${item.patientName}\nRequesting physician: ${item.requester}\nSpecialty: ${item.specialty}\nParticipating specialists: ${item.experts.join(', ')}\n\nRecorded specialist contributions:\n${contributions}\n\nShared case conclusion: ${item.opinion}\nFollow-up responsibility: The requesting physician reviews this conclusion and determines the next clinical steps.`
+    recordAudit(actor, 'Completed group case review and generated report', id)
   }
 
   function saveHealthPlan(patientId: string, fields: Pick<HealthPlan, 'goals' | 'measures' | 'reviewCycle'>, actor: AuditActor) {
@@ -503,6 +551,7 @@ export const useClinicalStore = defineStore('clinical', () => {
     startConsultation,
     completeConsultation,
     createAiRecord,
+    createAssistantRecord,
     saveRecord,
     addOrder,
     updateOrder,
@@ -511,6 +560,7 @@ export const useClinicalStore = defineStore('clinical', () => {
     createRemoteConsultation,
     updateRemoteStatus,
     addRemoteExpert,
+    recordRemoteExpertOpinion,
     completeRemoteConsultation,
     saveHealthPlan,
     addReminder,
