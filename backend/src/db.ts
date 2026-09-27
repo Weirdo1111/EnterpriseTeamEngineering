@@ -6,6 +6,8 @@ export interface DbUser {
   password_hash: string
   name: string
   role: string
+  email?: string | null
+  phone?: string | null
   status: string
 }
 
@@ -27,10 +29,13 @@ export function createDb() {
     supportBigNumbers: true,
     bigNumberStrings: true,
   })
-  const columns = 'id, username, password_hash, name, role, status'
+  const columns = 'id, username, password_hash, name, role, status, email, phone'
   return {
+    pool,
     async check() {
       await pool.query(`SELECT ${columns} FROM users LIMIT 0`)
+      await pool.query('SELECT id, user_id, channel, code_hash, destination_hash, expires_at, used_at, attempts, delivery_status, lease_expires_at FROM auth_login_codes LIMIT 0')
+      await pool.query('SELECT bucket_key, hits, expires_at FROM auth_rate_limits LIMIT 0')
     },
     async byAccount(account: string): Promise<DbUser | null> {
       const [rows] = await pool.execute<UserRow[]>(`SELECT ${columns} FROM users WHERE username = ? LIMIT 1`, [account])

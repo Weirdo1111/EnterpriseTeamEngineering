@@ -8,7 +8,8 @@
     "create-user": "node backend/scripts/create-user.js",
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "delete-user": "node backend/scripts/delete-user.js"
   },
   "dependencies": {
     "@lucide/vue": "^1.44.0",

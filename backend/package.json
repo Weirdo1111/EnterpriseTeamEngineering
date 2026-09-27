@@ -6,8 +6,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "node --test dist/db.node-test.js dist/routes/auth.node-test.js",
-    "create-user": "node scripts/create-user.js"
+    "test": "node --test dist/db.node-test.js dist/routes/*.node-test.js dist/auth/*.node-test.js",
+    "create-user": "node scripts/create-user.js",
+    "test:integration": "AUTH_MYSQL_TEST=1 node --test dist/auth/mysql.integration-test.js",
+    "delete-user": "node scripts/delete-user.js",
+    "test:delete-user": "AUTH_MYSQL_TEST=1 node --test scripts/delete-user.node-test.js",
+    "sms-test-code": "node scripts/sms-test-code.js"
   },
   "dependencies": {
     "argon2": "0.45.1",
