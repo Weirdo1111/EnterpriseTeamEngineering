@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import type { DdiIndex } from './ddinter.js'
 
 type Evidence = { title: string; url: string; version: string; reviewedBy: string; reviewedAt: string }
 type InteractionRule = { withIngredient: string; message: string; severity: 'warning' | 'critical'; evidence: Evidence }
@@ -13,10 +14,29 @@ export type MedicationEntry = {
   doseRules?: DoseRule[]
 }
 export type MedicationCatalog = { formatVersion: 1; jurisdiction: 'CN'; version: string; medications: MedicationEntry[] }
-export type SafetyFinding = { category: 'allergy' | 'cross-allergy' | 'interaction' | 'dose'; severity: 'warning' | 'critical'; message: string; evidence?: Evidence }
+export type SafetyFinding = { category: 'allergy' | 'cross-allergy' | 'interaction' | 'dose'; severity: 'warning' | 'critical'; message: string; evidence?: Evidence; reference?: { title: string; url: string } }
+
+const preliminarySource = {
+  title: 'Xinjiang Drug Administration: amoxicillin and penicillin allergy',
+  url: 'https://mpa.xinjiang.gov.cn/xjyjj/yyaq/202310/39284ff54a27437bbca06a4ab42ecaa1.shtml',
+}
+const knownIngredients = [
+  { name: 'Penicillin', family: 'penicillin', aliases: ['Penicillin', '青霉素'] },
+  { name: 'Amoxicillin', family: 'penicillin', aliases: ['Amoxicillin', '阿莫西林'] },
+  { name: 'Azithromycin', family: 'macrolide', aliases: ['Azithromycin', '阿奇霉素'] },
+  { name: 'Metoprolol', family: 'beta-blocker', aliases: ['Metoprolol', '美托洛尔'] },
+] as const
 
 const str = (value: unknown, max = 200) => typeof value === 'string' ? value.trim().slice(0, max) : ''
 const normalized = (value: string) => value.normalize('NFKC').trim().toLocaleLowerCase()
+function resolveKnownIngredient(value: string) {
+  const input = normalized(value)
+  for (const entry of knownIngredients) for (const alias of entry.aliases) {
+    const name = normalized(alias)
+    if (input === name || new RegExp(`^${name}\\s+\\d+(?:\\.\\d+)?\\s*(?:mg|g|mcg)(?:\\s+(?:oral|intravenous|iv|topical))?$`, 'u').test(input)) return entry
+  }
+  return null
+}
 const positive = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0
 const isEvidence = (value: unknown): value is Evidence => {
   if (!value || typeof value !== 'object') return false
@@ -61,7 +81,7 @@ function resolveMedication(catalog: MedicationCatalog, ingredient: string, appro
     [drug.ingredient, ...(drug.aliases || [])].some(name => normalized(name) === normalized(ingredient)))
 }
 
-export function checkOrderSafety(input: Record<string, unknown>, catalog: MedicationCatalog | null = null) {
+export function checkOrderSafety(input: Record<string, unknown>, catalog: MedicationCatalog | null = null, ddi: DdiIndex | null = null) {
   const patient = input.patient && typeof input.patient === 'object' ? input.patient as Record<string, unknown> : {}
   const order = input.order && typeof input.order === 'object' ? input.order as Record<string, unknown> : {}
   const content = str(order.content, 2000)
@@ -79,13 +99,22 @@ export function checkOrderSafety(input: Record<string, unknown>, catalog: Medica
   } else {
     const medication = order.medication && typeof order.medication === 'object' ? order.medication as Record<string, unknown> : {}
     const ingredient = str(medication.ingredient)
+    const resolved = resolveKnownIngredient(ingredient)
     const approvalNumber = str(medication.approvalNumber)
     const current = Array.isArray(patient.currentMedications) ? patient.currentMedications.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).slice(0, 100) : []
-    const candidate = catalog && ingredient && approvalNumber ? resolveMedication(catalog, ingredient, approvalNumber) : undefined
-    const exactAllergy = patient.allergyStatus === 'known' && ingredient && allergies.some(allergen => normalized(allergen) === normalized(ingredient))
-    if (exactAllergy) findings.push({ category: 'allergy', severity: 'critical', message: `Documented allergy exactly matches ${ingredient}. Verify ingredient and reaction before prescribing.` })
-    if (ingredient && (patient.allergyStatus === 'known' || patient.allergyStatus === 'none')) checked.push('Exact ingredient against documented allergy names')
+    const candidate = catalog && ingredient && approvalNumber ? resolveMedication(catalog, ingredient, approvalNumber) || (resolved && resolveMedication(catalog, resolved.name, approvalNumber)) : undefined
+    const exactAllergy = patient.allergyStatus === 'known' && ingredient && allergies.some(allergen => {
+      const knownAllergen = resolveKnownIngredient(allergen)
+      return normalized(allergen) === normalized(ingredient) || Boolean(resolved && knownAllergen && resolved.name === knownAllergen.name)
+    })
+    if (exactAllergy) findings.push({ category: 'allergy', severity: 'critical', message: `Documented allergy matches ${resolved?.name || ingredient}. Hold the order and verify the reaction and exact product before prescribing.` })
+    const preliminaryCrossAllergy = patient.allergyStatus === 'known' && resolved?.name === 'Amoxicillin' && allergies.some(allergen => resolveKnownIngredient(allergen)?.name === 'Penicillin')
+    if (preliminaryCrossAllergy) findings.push({ category: 'cross-allergy', severity: 'critical', message: 'Amoxicillin is a penicillin-class drug and the patient has a documented penicillin allergy. Hold the order and verify the reaction history; serious hypersensitivity may occur.', reference: preliminarySource })
+    if (resolved && (patient.allergyStatus === 'known' || patient.allergyStatus === 'none')) checked.push('Known ingredient and documented allergy names compared (preliminary name/class rule)')
+    else if (ingredient && (patient.allergyStatus === 'known' || patient.allergyStatus === 'none')) notChecked.push('Drug identity is not resolved; exact allergy comparison is limited to literal text')
     else notChecked.push('Exact allergy: confirm the ingredient and allergy history')
+    if (preliminaryCrossAllergy) checked.push('Amoxicillin versus documented penicillin allergy (preliminary source-backed warning)')
+    notChecked.push('Complete cross-allergy coverage requires a locally reviewed product-specific rule catalog')
     if (!catalog) notChecked.push('No reviewed Mainland China medication knowledge catalog is configured')
     else if (!candidate) notChecked.push('Drug identity is not matched to a reviewed ingredient and approval number')
 
@@ -94,7 +123,7 @@ export function checkOrderSafety(input: Record<string, unknown>, catalog: Medica
         findings.push({ category: 'cross-allergy', severity: rule.severity, message: rule.message, evidence: rule.evidence })
       }
       checked.push('Reviewed cross-allergy rules for documented allergen names')
-    } else notChecked.push('Cross-allergy: verified drug identity, allergy list, and reviewed rules required')
+    } else if (!preliminaryCrossAllergy) notChecked.push('Cross-allergy: verified drug identity, allergy list, and reviewed rules required')
 
     if (candidate && patient.medicationListConfirmed === true) {
       const knownCurrent = current.map(name => catalog!.medications.filter(drug => [drug.ingredient, ...(drug.aliases || [])].some(alias => normalized(alias) === normalized(name))))
@@ -111,7 +140,29 @@ export function checkOrderSafety(input: Record<string, unknown>, catalog: Medica
       if (!(candidate.interactions?.length) && !knownCurrent.some(drugs => drugs.some(drug => drug.interactions?.length))) notChecked.push('Interaction: no reviewed pair rules are available for these ingredients')
       else checked.push('Available reviewed interaction pairs against confirmed current medication list')
       notChecked.push('Interaction: current medication product identities and complete pair coverage are not verified')
-    } else notChecked.push('Interaction: confirm the complete current medication list and drug identity')
+    } else if (!ddi) notChecked.push('Interaction: confirm the complete current medication list and drug identity')
+
+    if (ddi) {
+      const proposedId = ddi.resolve(resolved?.name || ingredient)
+      if (patient.medicationListConfirmed !== true) notChecked.push('DDInter interaction screening: confirm the complete current medication list')
+      else if (!proposedId) notChecked.push('DDInter interaction screening: proposed ingredient was not uniquely resolved')
+      else {
+        const unmatched: string[] = []
+        for (const name of current) {
+          const currentId = ddi.resolve(resolveKnownIngredient(name)?.name || name)
+          if (!currentId) { unmatched.push(name); continue }
+          const pair = ddi.pair(proposedId, currentId)
+          if (pair) findings.push({
+            category: 'interaction', severity: pair.severity === 'Major' ? 'critical' : 'warning',
+            message: `DDInter ${pair.severity} interaction: ${pair.drugA} and ${pair.drugB}. ${pair.mechanism || 'Mechanism not supplied in the source row.'} Verify clinical relevance and management before prescribing.`,
+            reference: { title: 'DDInter 2.0 interaction data', url: 'https://ddinter2.scbdd.com/' },
+          })
+        }
+        checked.push('DDInter 2.0 pair lookup for uniquely resolved, confirmed current medication names')
+        if (unmatched.length) notChecked.push(`DDInter interaction screening: unresolved current medications (${unmatched.join(', ')})`)
+        notChecked.push('DDInter is not exhaustive; absent pairs and product-level effects do not establish no interaction')
+      }
+    }
 
     const dose = medication.dose && typeof medication.dose === 'object' ? medication.dose as Record<string, unknown> : {}
     const route = str(medication.route)
@@ -130,6 +181,7 @@ export function checkOrderSafety(input: Record<string, unknown>, catalog: Medica
       if (applicable.length) checked.push('Reviewed daily dose limits for matching route and available patient factors')
       else notChecked.push('Dose: no reviewed limit applies to this route and patient context')
     } else notChecked.push('Dose: verified formulation, route, amount, frequency, and reviewed product-specific limits required')
+    if (typeof patient.age === 'number' && patient.age >= 65) notChecked.push('Geriatric prescribing: reviewed Beers criteria and patient-specific conditions are required')
     notChecked.push('Indication, formulation strength, liver function, pregnancy, and other patient-specific contraindications')
   }
   if (patient.status === 'critical') findings.push({ category: 'dose', severity: 'warning', message: 'Patient is marked high risk; assess clinical urgency and complete context.' })
@@ -140,6 +192,7 @@ export function checkOrderSafety(input: Record<string, unknown>, catalog: Medica
     documentedAllergies: patient.allergyStatus === 'known' ? allergies : [],
     checked, notChecked: uniqueGaps,
     catalogVersion: catalog?.version || null,
+    interactionSource: ddi?.source || null,
     generatedAt: new Date().toISOString(),
   }
 }

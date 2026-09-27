@@ -1,6 +1,30 @@
 # Medication safety knowledge integration (Mainland China)
 
-The order-check engine is an advisory workflow, not a prescribing authorization. It never returns "safe to prescribe". With no configured catalog, it can flag an exact documented ingredient allergy but reports interaction, cross-allergy, and dose as unassessed. The repository contains no real medication rules or licensed drug database.
+The order-check engine is an advisory workflow, not a prescribing authorization. It never returns "safe to prescribe". With no configured product catalog, it can flag an exact documented ingredient allergy and a narrow preliminary amoxicillin-versus-penicillin allergy warning. A separate optional DDInter index can flag published drug-drug interaction pairs, but does not establish complete interaction coverage. Product-specific cross-allergy, geriatric prescribing, and dose remain unassessed. The repository contains no pharmacist-reviewed Mainland China product catalog.
+
+## Optional DDInter 2.0 course-demo index
+
+From `backend/`, run `npm run ddinter:prepare` before `npm start`. The script downloads a pinned upstream snapshot, verifies its SHA-256 hash, and writes `data/ddinter/interactions.json`. That directory is Git-ignored. The generated file retains only generic drug names, pair severity, and mechanism text; it excludes CIEL mappings, disease tables, inferred chains, and brand-name lists. `DDINTER_KNOWLEDGE_PATH` may point to a prepared index at another location. The backend loads the index once at startup; restart after updating it.
+
+The source is [DDInter 2.0](https://ddinter2.scbdd.com/) via the [OpenMRS knowledge-base packaging project](https://github.com/pbiondich/openmrs-ddi-knowledge-base). Citation: Xiong G, et al. "DDInter 2.0: an enhanced drug interaction resource with expanded data coverage, new interaction types, and improved user interface." *Nucleic Acids Research* 2025;53(D1):D1356-D1364. DDInter's [terms](https://ddinter.scbdd.com/terms/) specify CC BY-NC-SA 4.0 and non-commercial use; this integration is for non-commercial coursework only. The packaging project's code license does not override the upstream data terms. Do not publish the generated index or use it in a commercial or clinical deployment without separate review of rights and clinical suitability.
+
+To demonstrate a known interaction, select a physician account, enter `Metoprolol` as the proposed ingredient, add `Verapamil` under **Additional medication details > Current medications**, confirm the current medication list, then run the check. DDInter rates this pair `Major`; the result displays its mechanism, source, and remaining coverage gaps. Unconfirmed lists, ambiguous names, unrecognized drugs, and absent pairs never produce a safety clearance. The dataset does not evaluate dose, eGFR, Beers criteria, or the patient's indication.
+
+The preliminary warning recognizes `Penicillin`/`青霉素` and `Amoxicillin`/`阿莫西林`, including a single trailing dose and route such as `Amoxicillin 0.5g oral`. It is based on the [Xinjiang Drug Administration public safety notice](https://mpa.xinjiang.gov.cn/xjyjj/yyaq/202310/39284ff54a27437bbca06a4ab42ecaa1.shtml), not a product-specific approved label or a locally pharmacist-reviewed rule. It is a stop-and-verify alert, not a comprehensive cross-allergy classifier. The parser also recognizes `Azithromycin`/`阿奇霉素` and `Metoprolol`/`美托洛尔` as distinct ingredients, but does not assert that either is low risk. Unknown names and combination products remain unresolved. The dedicated route, dose, frequency, current-medicine, and eGFR fields still need verified values; text entered into the ingredient field does not prove those values.
+
+## Review pipeline
+
+```text
+Resolve a single known ingredient or a reviewed catalog entry.
+Compare documented allergies by exact name and known Chinese/English aliases.
+Apply the narrow, source-linked amoxicillin-versus-penicillin warning.
+If a confirmed current medication list and DDInter index are available, look up uniquely resolved drug pairs.
+Apply pharmacist-reviewed product rules only when approval number and required context match.
+Report missing medication reconciliation, interaction coverage, dose inputs, renal values, and geriatric rules.
+Show the most severe finding and all remaining gaps; never infer that no finding means a safe prescription.
+```
+
+For a 72-year-old with a recorded penicillin allergy but no confirmed current medicines or eGFR: `Amoxicillin 0.5g oral` produces a critical preliminary class warning and unresolved checks; `Azithromycin 0.25g oral` and `Metoprolol 25mg oral` produce no penicillin-allergy finding but remain incomplete. These are behavior examples, not prescribing recommendations. The [azithromycin label](https://www.dailymed.nlm.nih.gov/dailymed/getFile.cfm?setid=45410338-6bff-476b-b8e1-6c6238205a99&type=pdf) identifies cardiac QT concerns in older adults; the [metoprolol label](https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=0ccb9d3c-3f9a-486d-9b27-dc6f3ef6f4ed&version=1) identifies bradycardia and diabetes-related precautions. The [AGS Beers Criteria](https://agsjournals.onlinelibrary.wiley.com/doi/epdf/10.1111/jgs.18372) require contextual review and are not a substitute for locally applicable product rules.
 
 Set `MEDICATION_KNOWLEDGE_PATH` in `backend/.env` to an absolute JSON path only after a clinical pharmacist approves the source, product mapping, rules, and usage rights. The server validates and loads the file at startup; a malformed file prevents startup. Updating it requires a controlled release and server restart. The rules are not extracted directly from a RAG answer or LLM text.
 

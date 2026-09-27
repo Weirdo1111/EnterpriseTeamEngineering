@@ -3,6 +3,7 @@ import type { Pool } from 'mysql2/promise'
 import type { DbUser, UserLookup } from '../db.js'
 import { prepareClinicalDraft, prepareConsultationSummary, type NarrativeModel } from '../ai/synthetic-narrative.js'
 import { checkOrderSafety, type MedicationCatalog } from '../ai/medication-safety.js'
+import type { DdiIndex } from '../ai/ddinter.js'
 import { rankSimilarCases, relatedGuidance } from '../ai/similar.js'
 import type { StoredKnowledgeChunk } from '../rag/repository.js'
 import { createAuthenticated } from './auth.js'
@@ -12,7 +13,7 @@ type SimilarDependencies = {
   embed: (query: string) => Promise<number[]>
 }
 
-export function createAiRouter(users: UserLookup, secret: string, pool: Pool, similar: SimilarDependencies, medicationCatalog: MedicationCatalog | null = null, narrativeModel?: NarrativeModel) {
+export function createAiRouter(users: UserLookup, secret: string, pool: Pool, similar: SimilarDependencies, medicationCatalog: MedicationCatalog | null = null, narrativeModel?: NarrativeModel, ddi: DdiIndex | null = null) {
   const router = Router()
   router.use(createAuthenticated(users, secret))
   const clinician = (user: DbUser) => ['doctor', 'seniorDoctor'].includes(user.role)
@@ -51,9 +52,9 @@ export function createAiRouter(users: UserLookup, secret: string, pool: Pool, si
     const user = res.locals.user as DbUser
     if (!clinician(user)) { res.status(403).json({ message: 'Administrators cannot check clinical orders.' }); return }
     try {
-      const check = checkOrderSafety(req.body && typeof req.body === 'object' ? req.body : {}, medicationCatalog)
+      const check = checkOrderSafety(req.body && typeof req.body === 'object' ? req.body : {}, medicationCatalog, ddi)
       const patientId = typeof req.body?.patient?.id === 'string' ? req.body.patient.id : 'unlinked'
-      await audit(user, 'Checked proposed order', patientId, { status: check.status, orderType: req.body?.order?.type, catalogVersion: check.catalogVersion, findingCategories: check.findings.map(item => item.category), unassessedCount: check.notChecked.length }, req.ip)
+      await audit(user, 'Checked proposed order', patientId, { status: check.status, orderType: req.body?.order?.type, catalogVersion: check.catalogVersion, interactionSource: check.interactionSource, findingCategories: check.findings.map(item => item.category), unassessedCount: check.notChecked.length }, req.ip)
       res.json({ check })
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : 'Unable to check the order.' })

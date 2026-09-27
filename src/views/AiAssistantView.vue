@@ -52,10 +52,16 @@ const patient = computed(() => clinicalStore.patients.find(item => item.id === f
 const consultations = computed(() => clinicalStore.consultations.filter(item => item.patientId === form.patientId))
 const consultation = computed(() => consultations.value.find(item => item.id === form.consultationId))
 const activeTask = computed(() => taskOptions.find(item => item.value === form.task)!)
+const orderRisk = computed(() => {
+  if (!orderCheck.value) return null
+  if (orderCheck.value.findings.some(item => item.severity === 'critical')) return { label: 'High risk', conclusion: 'Hold this order until the identified risk and product are reviewed.', type: 'danger' as const }
+  if (orderCheck.value.findings.length) return { label: 'Review required', conclusion: 'Potential safety concerns require physician assessment.', type: 'warning' as const }
+  return { label: 'Safety review incomplete', conclusion: 'No direct conflict was detected, but missing data and knowledge prevent a safety conclusion.', type: 'warning' as const }
+})
 const canRun = computed(() => {
   if (!canOperate.value || !patient.value || busy.value) return false
   if (form.task === 'cases') return form.similarityQuery.trim().length >= 5
-  if (form.task === 'order') return form.orderType === 'Medication' ? Boolean(form.ingredient.trim()) : Boolean(form.orderContent.trim())
+  if (form.task === 'order') return true
   return Boolean(consultation.value || form.notes.trim())
 })
 
@@ -85,6 +91,10 @@ function context() {
 
 async function runTask() {
   if (!canRun.value) return
+  if (form.task === 'order' && form.orderType !== 'Medication' && !form.orderContent.trim()) {
+    ElMessage.warning('Enter the order details to check this non-medication order.')
+    return
+  }
   busy.value = true
   clearResult()
   try {
@@ -185,10 +195,12 @@ onMounted(async () => {
             <template v-else>
               <div class="order-input">
                 <label class="field-label"><span>Order type</span><el-select v-model="form.orderType" style="width: 100%" :disabled="!canOperate"><el-option v-for="type in ['Medication', 'Examination', 'Laboratory', 'Nursing']" :key="type" :label="type" :value="type" /></el-select></label>
-                <label class="field-label"><span>Order notes</span><el-input v-model="form.orderContent" type="textarea" :rows="2" resize="none" maxlength="2000" show-word-limit placeholder="Optional context; safety checks use structured fields" :disabled="!canOperate" /></label>
+                <label v-if="form.orderType === 'Medication'" class="field-label"><span>Generic ingredient</span><el-input v-model="form.ingredient" maxlength="200" placeholder="Enter the proposed medication ingredient" :disabled="!canOperate" /></label>
+                <label v-else class="field-label"><span>Order details</span><el-input v-model="form.orderContent" maxlength="2000" placeholder="Describe the proposed order" :disabled="!canOperate" /></label>
               </div>
-              <div v-if="form.orderType === 'Medication'" class="medication-fields">
-                <label class="field-label"><span>Generic ingredient</span><el-input v-model="form.ingredient" maxlength="200" placeholder="As listed in the product label" :disabled="!canOperate" /></label>
+              <details v-if="form.orderType === 'Medication'" class="optional-details">
+                <summary>Additional medication details</summary>
+                <div class="medication-fields">
                 <label class="field-label"><span>China approval number</span><el-input v-model="form.approvalNumber" maxlength="100" placeholder="Product approval number" :disabled="!canOperate" /></label>
                 <label class="field-label"><span>Route</span><el-select v-model="form.route" placeholder="Select route" style="width: 100%" :disabled="!canOperate"><el-option label="Oral" value="oral" /><el-option label="Intravenous" value="intravenous" /><el-option label="Topical" value="topical" /><el-option label="Other" value="other" /></el-select></label>
                 <label class="field-label"><span>Dose per administration</span><el-input-number v-model="form.doseValue" :min="0.001" :max="100000" :precision="3" :controls="false" style="width: 100%" :disabled="!canOperate" /></label>
@@ -196,8 +208,10 @@ onMounted(async () => {
                 <label class="field-label"><span>Administrations per day</span><el-input-number v-model="form.frequencyPerDay" :min="0.01" :max="24" :precision="2" :controls="false" style="width: 100%" :disabled="!canOperate" /></label>
                 <label class="field-label current-medications"><span>Current medications (generic ingredients)</span><el-select v-model="form.currentMedications" multiple filterable allow-create default-first-option placeholder="Add one ingredient at a time" style="width: 100%" :disabled="!canOperate" /></label>
                 <label class="field-label"><span>eGFR (mL/min/1.73 m²)</span><el-input-number v-model="form.egfr" :min="1" :max="200" :precision="1" :controls="false" style="width: 100%" :disabled="!canOperate" /></label>
+                <label class="field-label current-medications"><span>Order notes</span><el-input v-model="form.orderContent" maxlength="2000" placeholder="Optional context" :disabled="!canOperate" /></label>
                 <el-checkbox v-model="form.medicationListConfirmed" class="medication-confirm" :disabled="!canOperate">Current medication list confirmed with the patient or record</el-checkbox>
-              </div>
+                </div>
+              </details>
             </template>
             <div class="input-actions"><span v-if="form.task === 'cases'">Only clinical features are sent for matching. Results are synthetic examples.</span><span v-else-if="form.task === 'order'">A result marked incomplete does not establish medication safety.</span><span v-else-if="form.task === 'emr'">A draft is created automatically. Review and complete it in Medical Records.</span><span v-else>Review source notes and any missing information.</span><el-button :icon="activeTask.icon" type="primary" :loading="busy" :disabled="!canRun" @click="runTask">{{ form.task === 'emr' ? 'Create Record Draft' : `Run ${activeTask.title}` }}</el-button></div>
           </div>
@@ -231,12 +245,14 @@ onMounted(async () => {
             <div class="guidance-list"><h3>Related Guidance</h3><article v-for="item in cases.guidance" :key="item.documentId"><strong>{{ item.title }}</strong><p>{{ item.excerpt }}</p><a v-if="item.sourceUrl" :href="item.sourceUrl" target="_blank" rel="noopener noreferrer">Open source</a></article><p v-if="!cases.guidance.length" class="empty-note">No relevant approved guidance was found for these features.</p></div>
           </div>
           <div v-else-if="orderCheck" class="panel-body check-body">
-            <el-alert :title="orderCheck.status === 'potential-match' ? 'Potential medication safety issue' : 'Safety review incomplete'" :type="orderCheck.status === 'potential-match' ? 'error' : 'warning'" show-icon :closable="false" />
-            <p class="catalog-version">{{ orderCheck.catalogVersion ? `Reviewed catalog: ${orderCheck.catalogVersion}` : 'No reviewed China medication catalog connected' }}. This result never clears an order for prescribing.</p>
-            <div v-if="orderCheck.findings.length"><h3>Findings</h3><article v-for="(finding, index) in orderCheck.findings" :key="index" class="finding"><el-tag :type="finding.severity === 'critical' ? 'danger' : 'warning'" size="small">{{ finding.category }}</el-tag><p>{{ finding.message }}</p><a v-if="finding.evidence" :href="finding.evidence.url" target="_blank" rel="noopener noreferrer">{{ finding.evidence.title }} · {{ finding.evidence.version }} · reviewed {{ finding.evidence.reviewedAt }}</a></article></div>
+            <div class="risk-summary"><el-tag :type="orderRisk?.type" effect="dark">{{ orderRisk?.label }}</el-tag><strong>{{ orderRisk?.conclusion }}</strong></div>
+            <p class="catalog-version">{{ orderCheck.catalogVersion ? `Reviewed product rules: ${orderCheck.catalogVersion}` : 'No reviewed China product-rule catalog connected' }}. {{ orderCheck.interactionSource ? `Interaction source: ${orderCheck.interactionSource}.` : 'No interaction dataset connected.' }} This result never clears an order for prescribing.</p>
+            <div v-if="orderCheck.findings.length"><h3>Alerts</h3><article v-for="(finding, index) in orderCheck.findings" :key="index" class="finding"><el-tag :type="finding.severity === 'critical' ? 'danger' : 'warning'" size="small">{{ finding.category }}</el-tag><p>{{ finding.message }}</p><a v-if="finding.evidence" :href="finding.evidence.url" target="_blank" rel="noopener noreferrer">{{ finding.evidence.title }} · {{ finding.evidence.version }} · reviewed {{ finding.evidence.reviewedAt }}</a><a v-else-if="finding.reference" :href="finding.reference.url" target="_blank" rel="noopener noreferrer">{{ finding.reference.title }} · preliminary reference, local pharmacy review pending</a></article></div>
+            <div v-else><h3>Alerts</h3><p>No directly matched alert. This does not establish safety.</p></div>
             <div><h3>Documented Allergies</h3><p>{{ orderCheck.documentedAllergies.length ? orderCheck.documentedAllergies.join(', ') : 'No confirmed allergy list available.' }}</p></div>
-            <div><h3>Checked</h3><p v-for="item in orderCheck.checked" :key="item">{{ item }}</p></div>
-            <div class="missing"><h3>Not Checked</h3><p v-for="item in orderCheck.notChecked" :key="item">{{ item }}</p></div>
+            <div><h3>Checked</h3><p v-for="item in orderCheck.checked" :key="item">{{ item }}</p><p v-if="!orderCheck.checked.length">No safety domain was fully checked.</p></div>
+            <div class="missing"><h3>Not Checked</h3><p v-for="item in orderCheck.notChecked" :key="item">{{ item }}</p><p v-if="!orderCheck.notChecked.length">No additional gaps recorded for the available rules; physician review is still required.</p></div>
+            <div><h3>Physician Review</h3><p>{{ orderRisk?.type === 'danger' ? 'Do not proceed until the allergy or other critical finding, the exact product, and the patient history are verified. Consult pharmacy when needed.' : 'Confirm the exact product, complete medication list, relevant measurements, and indication before prescribing.' }}</p></div>
           </div>
           <div v-else class="empty-result"><component :is="activeTask.icon" :size="26" /><span>Select the clinical context and run the task.</span></div>
         </section>
@@ -262,6 +278,8 @@ onMounted(async () => {
 .guidance-list { border-top: 1px solid var(--border); }.guidance-list h3 { margin: 0; padding: 13px 18px; color: var(--text-strong); font-size: 12px; }.guidance-list a { color: var(--primary); font-size: 11px; }
 .check-body { display: grid; gap: 14px; }.empty-result { display: grid; min-height: 165px; place-items: center; align-content: center; gap: 9px; color: var(--subtle); font-size: 12px; }
 .medication-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }.current-medications { grid-column: span 2; }.medication-confirm { grid-column: 1 / -1; height: auto; white-space: normal; }.medication-confirm :deep(.el-checkbox__label) { white-space: normal; line-height: 1.4; }.catalog-version { margin: 0; color: var(--muted); font-size: 11px; }.finding { padding: 10px 0; border-bottom: 1px solid var(--border); }.finding a { color: var(--primary); font-size: 11px; }
+.risk-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }.risk-summary strong { color: var(--text-strong); font-size: 13px; line-height: 1.5; }
+.optional-details { border-top: 1px solid var(--border); padding-top: 12px; }.optional-details summary { width: fit-content; color: var(--primary); font-size: 12px; font-weight: 600; cursor: pointer; }.optional-details .medication-fields { margin-top: 14px; }
 @media (max-width: 840px) { .assistant-layout { grid-template-columns: 1fr; }.task-panel { position: static; }.task-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }.task-list button:nth-child(odd) { border-right: 1px solid var(--border); } }
 @media (max-width: 560px) { .task-list, .context-controls, .summary-grid, .order-input, .medication-fields { grid-template-columns: 1fr; }.current-medications { grid-column: auto; }.task-list button:nth-child(odd) { border-right: 0; }.input-actions { align-items: stretch; flex-direction: column; }.input-actions .el-button, .result-actions .el-button { width: 100%; }.patient-facts span + span { border-left: 0; padding-left: 0; } }
 </style>

@@ -9,6 +9,7 @@ import { createRecordService } from './records/service.js'
 import { createRecordsRouter } from './routes/records.js'
 import { createAiRouter } from './routes/ai.js'
 import { loadMedicationCatalog } from './ai/medication-safety.js'
+import { loadDdiIndex } from './ai/ddinter.js'
 import { arkConfig, createArkClient } from './rag/ark.js'
 import { createKnowledgeRepository } from './rag/repository.js'
 import { createRagService } from './rag/service.js'
@@ -29,7 +30,7 @@ async function main() {
     app.use('/api/records', createRecordsRouter(db, secret, createRecordService(createRecordRepository(db.pool)), db.pool))
     const knowledge = createKnowledgeRepository(db.pool)
     const ark = createArkClient(arkConfig())
-    app.use('/api/ai', createAiRouter(db, secret, db.pool, { chunks: knowledge.readyChunks, embed: ark.embed }, loadMedicationCatalog(), ark.extractClinicalNarrative))
+    app.use('/api/ai', createAiRouter(db, secret, db.pool, { chunks: knowledge.readyChunks, embed: ark.embed }, loadMedicationCatalog(), ark.extractClinicalNarrative, loadDdiIndex()))
     app.use('/api/rag', createRagRouter(db, secret, createRagService({ chunks: knowledge.readyChunks, embed: ark.embed, answer: ark.answer }), knowledge, db.pool))
     const errors: ErrorRequestHandler = (_error, _req, res, _next) => {
       res.status(500).json({ message: 'Internal server error' })
