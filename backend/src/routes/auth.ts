@@ -1,7 +1,8 @@
-import { Router, type Request, type Response, type NextFunction } from 'express'
+import { Router, json, type Request, type Response, type NextFunction, type ErrorRequestHandler } from 'express'
 import argon2 from 'argon2'
 import jwt, { type JwtPayload } from 'jsonwebtoken'
 import { AuthCodeError, type CodeAuth } from '../auth/codes.js'
+import { FACE_FAILURE, FaceAuthError, validFaceImage, type FaceAuth } from '../auth/face.js'
 import type { DbUser, UserLookup } from '../db.js'
 
 const roles = new Set(['doctor', 'seniorDoctor', 'admin'])
@@ -16,7 +17,27 @@ function publicUser(user: DbUser) {
   }
 }
 
-export function createAuthRouter(users: UserLookup, secret: string, codes?: CodeAuth) {
+export function createAuthenticated(users: UserLookup, secret: string) {
+  return async function authenticated(req: Request, res: Response, next: NextFunction) {
+    const match = /^Bearer (\S+)$/i.exec(req.header('Authorization') || '')
+    if (!match) { res.status(401).json({ message: 'Unauthorized' }); return }
+    try {
+      const payload = jwt.verify(match[1]!, secret, { algorithms: ['HS256'] }) as JwtPayload
+      if (typeof payload.sub !== 'string') { res.status(401).json({ message: 'Unauthorized' }); return }
+      const user = await users.byId(payload.sub)
+      if (!user || user.status !== 'active' || !roles.has(user.role)) {
+        res.status(401).json({ message: 'Unauthorized' }); return
+      }
+      res.locals.user = user
+      next()
+    } catch (error) {
+      if (error instanceof jwt.JsonWebTokenError) { res.status(401).json({ message: 'Unauthorized' }); return }
+      next(error)
+    }
+  }
+}
+
+export function createAuthRouter(users: UserLookup, secret: string, codes?: CodeAuth, faces?: FaceAuth) {
   const router = Router()
   router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
 
@@ -24,6 +45,31 @@ export function createAuthRouter(users: UserLookup, secret: string, codes?: Code
     const token = jwt.sign({}, secret, { algorithm: 'HS256', subject: String(user.id), expiresIn: '2h' })
     res.json({ token, user: publicUser(user) })
   }
+
+  const faceFailure = (res: Response, error: unknown) => {
+    const status = error instanceof FaceAuthError ? error.status : 401
+    if (status === 429) res.set('Retry-After', '900')
+    if (!(error instanceof FaceAuthError)) console.warn('Face authentication', { code: 'InternalFailure' })
+    res.status(status).json({ message: status === 429 ? 'Too many attempts. Try again later.' : FACE_FAILURE })
+  }
+  router.post('/face/login', async (req, res, next) => {
+    try {
+      if (!faces) throw new FaceAuthError()
+      await faces.limitIp(req.ip || 'unknown')
+      next()
+    } catch (error) { faceFailure(res, error) }
+  }, json({ limit: '3mb', inflate: false }), async (req, res) => {
+    const body = req.body
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(req.query).length ||
+        Object.keys(body).some(key => !['account', 'image'].includes(key)) ||
+        typeof body.account !== 'string' || !body.account.trim() || body.account.length > 50 || !validFaceImage(body.image)) {
+      res.status(400).json({ message: 'Invalid face login request' }); return
+    }
+    try { completeLogin(res, await faces!.verify(body.account.trim(), body.image)) }
+    catch (error) { faceFailure(res, error) }
+  })
+  // Keep all other authentication requests at their original small body limit.
+  router.use(json({ limit: '16kb' }))
 
   for (const action of ['request', 'login'] as const) {
     router.post(`/code/${action}`, async (req, res, next) => {
@@ -54,23 +100,7 @@ export function createAuthRouter(users: UserLookup, secret: string, codes?: Code
     })
   }
 
-  async function authenticated(req: Request, res: Response, next: NextFunction) {
-    const match = /^Bearer (\S+)$/i.exec(req.header('Authorization') || '')
-    if (!match) { res.status(401).json({ message: 'Unauthorized' }); return }
-    try {
-      const payload = jwt.verify(match[1]!, secret, { algorithms: ['HS256'] }) as JwtPayload
-      if (typeof payload.sub !== 'string') { res.status(401).json({ message: 'Unauthorized' }); return }
-      const user = await users.byId(payload.sub)
-      if (!user || user.status !== 'active' || !roles.has(user.role)) {
-        res.status(401).json({ message: 'Unauthorized' }); return
-      }
-      res.locals.user = user
-      next()
-    } catch (error) {
-      if (error instanceof jwt.JsonWebTokenError) { res.status(401).json({ message: 'Unauthorized' }); return }
-      next(error)
-    }
-  }
+  const authenticated = createAuthenticated(users, secret)
 
   router.post('/login', async (req, res) => {
     const { account, password } = req.body ?? {}
@@ -95,5 +125,13 @@ export function createAuthRouter(users: UserLookup, secret: string, codes?: Code
     res.json({ success: true })
   })
 
+  const bodyErrors: ErrorRequestHandler = (error, _req, res, next) => {
+    if (['entity.too.large', 'entity.parse.failed', 'encoding.unsupported', 'charset.unsupported'].includes(error?.type)) {
+      res.status(error.type === 'entity.too.large' ? 413 : 400).json({ message: 'Invalid authentication request' })
+      return
+    }
+    next(error)
+  }
+  router.use(bodyErrors)
   return router
 }

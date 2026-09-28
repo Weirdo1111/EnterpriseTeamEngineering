@@ -1,78 +1,151 @@
 <script setup lang="ts">
-import { computed, reactive, shallowRef } from 'vue'
+import { computed, nextTick, onUnmounted, reactive, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { CheckCircle2, LockKeyhole, ScanFace, ShieldCheck, Smartphone, Stethoscope } from '@lucide/vue'
+import { CheckCircle2, LockKeyhole, Mail, ScanFace, ShieldCheck, Stethoscope } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
-import type { Role } from '@/types/clinical'
+import { authApi } from '@/services/auth'
+import { ApiError } from '@/services/http'
 
-type LoginMethod = 'password' | 'sms' | 'face'
-
+type LoginMethod = 'password' | 'email' | 'face'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const method = shallowRef<LoginMethod>('password')
-const selectedRole = shallowRef<Role>('doctor')
 const loading = shallowRef(false)
-const faceChecking = shallowRef(false)
-const faceVerified = shallowRef(false)
-const smsSent = shallowRef(false)
-const form = reactive({
-  account: 'doctor.demo',
-  password: '',
-  captcha: '0926',
-  mobile: '138****6026',
-  smsCode: '',
-})
-
+const sending = shallowRef(false)
+const secondsRemaining = shallowRef(0)
+const requestNotice = shallowRef('')
+const faceVideo = shallowRef<HTMLVideoElement | null>(null)
+const cameraOpening = shallowRef(false)
+const cameraReady = shallowRef(false)
+let cameraStream: MediaStream | undefined
+let cameraGeneration = 0
+const form = reactive({ account: '', password: '', emailCode: '' })
+let countdown: ReturnType<typeof setInterval> | undefined
 const methods = [
   { value: 'password' as const, label: 'Password', icon: LockKeyhole },
-  { value: 'sms' as const, label: 'SMS Verification', icon: Smartphone },
+  { value: 'email' as const, label: 'Email Verification', icon: Mail },
   { value: 'face' as const, label: 'Facial Verification', icon: ScanFace },
 ]
+const canSubmit = computed(() => Boolean(form.account.trim()) && !loading.value && !sending.value && (
+  method.value === 'password' ? Boolean(form.password) : method.value === 'email' ? /^\d{6}$/.test(form.emailCode) : cameraReady.value
+))
 
-const roleOptions = [
-  { value: 'doctor', label: 'Physician · Dr. Riley Lin' },
-  { value: 'seniorDoctor', label: 'Senior Physician · Dr. Michael Zhou' },
-  { value: 'admin', label: 'System Administrator · Platform Admin' },
-]
+function startCooldown() {
+  clearInterval(countdown)
+  const until = Date.now() + 60_000
+  secondsRemaining.value = 60
+  countdown = setInterval(() => {
+    secondsRemaining.value = Math.max(0, Math.ceil((until - Date.now()) / 1000))
+    if (!secondsRemaining.value) clearInterval(countdown)
+  }, 1000)
+}
+function stopCamera() {
+  cameraGeneration++
+  cameraStream?.getTracks().forEach(track => track.stop())
+  cameraStream = undefined
+  if (faceVideo.value) faceVideo.value.srcObject = null
+  cameraReady.value = false
+  cameraOpening.value = false
+}
+onUnmounted(() => { clearInterval(countdown); stopCamera() })
 
-const canSubmit = computed(() => {
-  if (method.value === 'password') return Boolean(form.account && form.password && form.captcha.length === 4)
-  if (method.value === 'sms') return Boolean(form.mobile && form.smsCode.length === 4)
-  return Boolean(form.account && faceVerified.value)
-})
+async function openCamera() {
+  if (cameraOpening.value || loading.value) return
+  stopCamera()
+  if (!navigator.mediaDevices?.getUserMedia) {
+    ElMessage.error('Camera access requires HTTPS or localhost and a supported browser.')
+    return
+  }
+  const generation = cameraGeneration
+  cameraOpening.value = true
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } })
+    if (generation !== cameraGeneration) { stream.getTracks().forEach(track => track.stop()); return }
+    cameraStream = stream
+    await nextTick()
+    if (generation !== cameraGeneration || !faceVideo.value) { stream.getTracks().forEach(track => track.stop()); return }
+    faceVideo.value.srcObject = stream
+    await faceVideo.value.play()
+    if (generation === cameraGeneration) cameraReady.value = true
+  } catch {
+    if (generation === cameraGeneration) {
+      stopCamera()
+      ElMessage.error('Unable to access the camera. Allow camera access or use password/email sign-in.')
+    }
+  } finally { if (generation === cameraGeneration) cameraOpening.value = false }
+}
+
+function capturePhoto() {
+  const video = faceVideo.value
+  if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) throw new Error('Camera not ready')
+  const scale = Math.min(1, 960 / Math.max(video.videoWidth, video.videoHeight))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(video.videoWidth * scale)
+  canvas.height = Math.round(video.videoHeight * scale)
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Camera not ready')
+  context.drawImage(video, 0, 0, canvas.width, canvas.height)
+  const image = canvas.toDataURL('image/jpeg', 0.85).split(',')[1]
+  canvas.width = canvas.height = 0
+  if (!image || image.length > 2_800_000) throw new Error('Photo too large')
+  return image
+}
+
+function messageFor(error: unknown) {
+  if (error instanceof ApiError) {
+    if (error.status === 400) return 'Please check the account and verification code format.'
+    if (error.status === 401) return method.value === 'face' ? 'Face verification failed. Please retry or use another sign-in method.' : 'Invalid credentials or expired verification code.'
+    if (error.status === 413) return 'The photo is too large. Please take another photo.'
+    if (error.status === 429) return 'Too many requests. Please wait; hourly limits may take longer to reset.'
+    if (error.status === 503) return 'The authentication service is unavailable. Check the service configuration or use password sign-in.'
+  }
+  return 'Unable to contact the authentication service. Please try again.'
+}
 
 function switchMethod(value: LoginMethod) {
+  if (loading.value || sending.value) return
+  stopCamera()
   method.value = value
-  faceVerified.value = false
+  form.password = ''
+  form.emailCode = ''
+  requestNotice.value = ''
 }
 
-function sendSmsCode() {
-  smsSent.value = true
-  form.smsCode = '0926'
-  ElMessage.success('Demo verification code entered: 0926')
-}
-
-function verifyFace() {
-  faceChecking.value = true
-  window.setTimeout(() => {
-    faceChecking.value = false
-    faceVerified.value = true
-    ElMessage.success('Identity verified (local demo)')
-  }, 650)
+async function sendEmailCode() {
+  if (!form.account.trim() || sending.value || loading.value || secondsRemaining.value) return
+  sending.value = true
+  requestNotice.value = ''
+  try {
+    await authApi.requestEmailCode(form.account.trim())
+    form.emailCode = ''
+    requestNotice.value = 'Request accepted, not confirmation of delivery. If eligible, a code will be sent to the account’s preset email.'
+    startCooldown()
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 429) startCooldown()
+    ElMessage.error(messageFor(error))
+  } finally { sending.value = false }
 }
 
 async function submitLogin() {
   if (!canSubmit.value) return
   loading.value = true
   try {
-    if (method.value === 'password' && authStore.usesBackend) await authStore.loginWithPassword(form.account, form.password)
-    else authStore.login(selectedRole.value)
+    if (method.value === 'password') await authStore.loginWithPassword(form.account.trim(), form.password)
+    else if (method.value === 'email') await authStore.loginWithEmail(form.account.trim(), form.emailCode)
+    else if (method.value === 'face') {
+      const image = capturePhoto()
+      stopCamera()
+      await authStore.loginWithFace(form.account.trim(), image)
+    } else return
+    form.password = ''
+    form.emailCode = ''
     ElMessage.success('Signed in successfully')
-    await router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
+    const redirect = route.query.redirect
+    await router.replace(typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//') && !redirect.startsWith('/login') ? redirect : '/')
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : 'Sign-in failed.')
+    ElMessage.error(messageFor(error))
   } finally { loading.value = false }
 }
 </script>
@@ -112,6 +185,7 @@ async function submitLogin() {
             v-for="item in methods"
             :key="item.value"
             type="button"
+            :disabled="loading || sending"
             :class="{ active: method === item.value }"
             @click="switchMethod(item.value)"
           >
@@ -120,41 +194,30 @@ async function submitLogin() {
         </div>
 
         <el-form label-position="top" class="login-form" @submit.prevent="submitLogin">
+          <el-form-item label="Account">
+            <el-input v-model="form.account" size="large" maxlength="50" autocomplete="username" :disabled="loading || sending" @input="requestNotice = ''; form.emailCode = ''" />
+          </el-form-item>
           <template v-if="method === 'password'">
-            <el-form-item label="Account"><el-input v-model="form.account" size="large" /></el-form-item>
-            <el-form-item label="Password"><el-input v-model="form.password" size="large" type="password" show-password /></el-form-item>
-            <el-form-item label="Verification Code"><el-input v-model="form.captcha" size="large" maxlength="4" /></el-form-item>
+            <el-form-item label="Password"><el-input v-model="form.password" size="large" type="password" autocomplete="current-password" show-password :disabled="loading" /></el-form-item>
           </template>
-
-          <template v-else-if="method === 'sms'">
-            <el-form-item label="Mobile Number"><el-input v-model="form.mobile" size="large" /></el-form-item>
-            <el-form-item label="SMS Code">
+          <template v-else-if="method === 'email'">
+            <el-form-item label="Email Code">
               <div class="code-row">
-                <el-input v-model="form.smsCode" size="large" maxlength="4" placeholder="Enter the 4-digit code" />
-                <el-button size="large" @click="sendSmsCode">{{ smsSent ? 'Resend' : 'Send Code' }}</el-button>
+                <el-input v-model="form.emailCode" size="large" maxlength="6" inputmode="numeric" autocomplete="one-time-code" placeholder="Enter the 6-digit code" :disabled="loading" />
+                <el-button size="large" :loading="sending" :disabled="!form.account.trim() || loading || secondsRemaining > 0" @click="sendEmailCode">{{ secondsRemaining ? `${secondsRemaining}s` : 'Request Code' }}</el-button>
               </div>
             </el-form-item>
+            <p class="email-note" role="status">{{ requestNotice || 'Use your username. Codes are sent only to the email preset by your administrator.' }}</p>
           </template>
-
-          <template v-else>
-            <el-form-item label="Account"><el-input v-model="form.account" size="large" /></el-form-item>
-            <button class="face-check" :class="{ verified: faceVerified }" type="button" @click="verifyFace">
-              <ScanFace :size="34" />
-              <strong>{{ faceVerified ? 'Identity verified' : 'Start facial identity verification' }}</strong>
-              <span>{{ faceChecking ? 'Verifying demo identity...' : 'This demo simulates verification and does not access the camera' }}</span>
-            </button>
-          </template>
-
-          <el-form-item v-if="!authStore.usesBackend || method !== 'password'" label="Demo Role" class="role-select">
-            <el-select v-model="selectedRole" size="large">
-              <el-option v-for="role in roleOptions" :key="role.value" :label="role.label" :value="role.value" />
-            </el-select>
-          </el-form-item>
-
-          <el-button class="login-button" type="primary" size="large" :loading="loading" :disabled="!canSubmit" @click="submitLogin">Enter Workspace</el-button>
+          <div v-else class="face-check">
+            <video ref="faceVideo" class="face-video" autoplay muted playsinline aria-label="Camera preview" />
+            <el-button :loading="cameraOpening" :disabled="loading" @click="openCamera">{{ cameraReady ? 'Restart Camera' : 'Enable Camera' }}</el-button>
+            <el-button v-if="cameraReady" :disabled="loading" @click="stopCamera">Turn Off Camera</el-button>
+          </div>
+          <el-button class="login-button" type="primary" native-type="submit" size="large" :loading="loading" :disabled="!canSubmit">{{ method === 'face' ? 'VerifyFace' : 'Enter Workspace' }}</el-button>
         </el-form>
 
-        <p class="security-note"><ShieldCheck :size="15" />Sign-in activity is recorded in your personal audit log</p>
+        <p class="security-note"><ShieldCheck :size="15" />Accounts and contact details are managed by your administrator</p>
       </div>
     </section>
   </main>
@@ -206,10 +269,9 @@ async function submitLogin() {
 
 .code-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; width: 100%; }
 .face-check { display: grid; width: 100%; min-height: 150px; place-items: center; align-content: center; gap: 7px; margin-bottom: 19px; border: 1px dashed var(--border-strong); border-radius: 5px; color: var(--primary); background: var(--panel-soft); cursor: pointer; }
+.face-video { width: 100%; max-height: 260px; background: #13222c; border-radius: 4px; transform: scaleX(-1); }
 .face-check span { color: var(--muted); font-size: 11px; }
-.face-check.verified { color: var(--green); border-color: #8fc4a8; background: #f0f8f3; }
-.role-select { margin-top: 4px; }
-.role-select :deep(.el-select) { width: 100%; }
+.email-note { margin: 0 0 18px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .login-button { width: 100%; margin-top: 2px; }
 .security-note { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 18px 0 0; color: var(--muted); font-size: 11px; }
 

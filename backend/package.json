@@ -6,12 +6,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "node --test dist/db.node-test.js dist/routes/*.node-test.js dist/auth/*.node-test.js",
     "create-user": "node scripts/create-user.js",
-    "test:integration": "AUTH_MYSQL_TEST=1 node --test dist/auth/mysql.integration-test.js",
     "delete-user": "node scripts/delete-user.js",
-    "test:delete-user": "AUTH_MYSQL_TEST=1 node --test scripts/delete-user.node-test.js",
-    "sms-test-code": "node scripts/sms-test-code.js"
+    "build:auth": "tsc -p tsconfig.auth.json",
+    "test:face": "npm run build:auth && node --test tests/face.node-test.mjs",
+    "test:face:db": "npm run build:auth && FACE_MYSQL_TEST=1 node --test tests/face-db.node-test.mjs"
   },
   "dependencies": {
     "argon2": "0.45.1",
@@ -26,8 +25,6 @@
     "@types/express": "5.0.6",
     "@types/jsonwebtoken": "9.0.10",
     "@types/node": "26.6.2",
-    "@types/supertest": "7.2.1",
-    "supertest": "7.2.2",
     "typescript": "7.0.2"
   }
 }

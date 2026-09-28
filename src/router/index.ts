@@ -2,6 +2,7 @@ import { useClinicalStore } from '@/stores/clinical'
 import { createRouter, createWebHistory } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { ApiError } from '@/services/http'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -77,13 +78,20 @@ const router = createRouter({
   ],
 })
 
-let sessionChecked = false
-
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
-  if (!sessionChecked && authStore.isAuthenticated) {
-    sessionChecked = true
-    try { await authStore.restoreSession() } catch { await authStore.logout() }
+  if (authStore.token) {
+    try {
+      await authStore.restoreSession()
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) authStore.clearSession()
+      else {
+        ElMessage.error('Unable to verify your session. Please retry when the authentication service is available.')
+        // Allow the login page for recovery, but never enter a protected route on a failed check.
+        if (to.name !== 'login') return { name: 'login', query: { redirect: to.fullPath } }
+        return true
+      }
+    }
   }
   const isPublic = Boolean(to.meta.public)
 

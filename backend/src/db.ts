@@ -8,6 +8,7 @@ export interface DbUser {
   role: string
   email?: string | null
   phone?: string | null
+  tencent_person_id?: string | null
   status: string
 }
 
@@ -29,7 +30,7 @@ export function createDb() {
     supportBigNumbers: true,
     bigNumberStrings: true,
   })
-  const columns = 'id, username, password_hash, name, role, status, email, phone'
+  const columns = 'id, username, password_hash, name, role, status, email, phone, tencent_person_id'
   return {
     pool,
     async check() {

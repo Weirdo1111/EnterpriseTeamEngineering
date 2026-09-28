@@ -6,10 +6,11 @@
   "scripts": {
     "test": "vitest run",
     "create-user": "node backend/scripts/create-user.js",
-    "dev": "vite --host 127.0.0.1",
+    "dev": "npm run build:auth --prefix backend && node scripts/dev.mjs",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "delete-user": "node backend/scripts/delete-user.js"
+    "delete-user": "node backend/scripts/delete-user.js",
+    "dev:frontend": "vite --host 127.0.0.1 --strictPort"
   },
   "dependencies": {
     "@lucide/vue": "^1.44.0",

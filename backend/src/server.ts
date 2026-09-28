@@ -4,6 +4,9 @@ import cors from 'cors'
 import { startCodeWorker } from './auth/worker.js'
 import { createCodeAuth } from './auth/codes.js'
 import { createCodeSender } from './auth/delivery.js'
+import { createTencentFaceVerifier } from './auth/tencent-face.js'
+import { createFaceAuth } from './auth/face.js'
+import { createFaceLimits } from './auth/face-limits.js'
 import { createDb } from './db.js'
 import { createAuthRouter } from './routes/auth.js'
 
@@ -19,9 +22,9 @@ async function main() {
     const app = express()
     app.disable('x-powered-by')
     app.use(cors({ origin: ['http://127.0.0.1:5173', 'http://localhost:5173'] }))
-    app.use(express.json({ limit: '16kb' }))
     const codes = createCodeAuth(db.pool, sender, codeSecret)
-    app.use('/api/auth', createAuthRouter(db, secret, codes))
+    const faces = createFaceAuth(db, createTencentFaceVerifier(), createFaceLimits(db.pool, codeSecret))
+    app.use('/api/auth', createAuthRouter(db, secret, codes, faces))
     const errors: ErrorRequestHandler = (_error, _req, res, _next) => {
       res.status(500).json({ message: 'Internal server error' })
     }
