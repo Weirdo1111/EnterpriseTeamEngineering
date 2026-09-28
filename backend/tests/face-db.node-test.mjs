@@ -53,19 +53,31 @@ test('real MySQL migration, server mapping, durable face limits and existing ema
   })
   await t.test('case/accent aliases share budget and limits survive service reconstruction', async () => {
     const limits = createFaceLimits(pool, secret)
-    for (const account of ['DOCTOR', 'Doctór', 'doctór', 'doctor']) await limits.account(account)
+    for (let i = 0; i < 14; i++) await limits.account(['DOCTOR', 'Doctór', 'doctór', 'doctor'][i % 4])
     await assert.rejects(createFaceLimits(pool, secret).account('DOCTÓR'), error => error.status === 429)
   })
-  await t.test('concurrent unknown account attempts cannot exceed five', async () => {
+  await t.test('concurrent unknown account attempts cannot exceed fifteen', async () => {
     const limits = createFaceLimits(pool, secret)
-    const attempts = await Promise.allSettled(Array.from({ length: 10 }, () => limits.account('unknown')))
-    assert.equal(attempts.filter(a => a.status === 'fulfilled').length, 5, JSON.stringify(attempts.filter(a => a.status === 'rejected').map(a => ({ status: a.reason.status, code: a.reason.code }))))
+    const attempts = await Promise.allSettled(Array.from({ length: 20 }, () => limits.account('unknown')))
+    assert.equal(attempts.filter(a => a.status === 'fulfilled').length, 15, JSON.stringify(attempts.filter(a => a.status === 'rejected').map(a => ({ status: a.reason.status, code: a.reason.code }))))
     assert.ok(attempts.filter(a => a.status === 'rejected').every(a => a.reason.status === 429), JSON.stringify(attempts.filter(a => a.status === 'rejected').map(a => ({ status: a.reason.status, code: a.reason.code }))))
   })
   await t.test('IP attempts limited independently of account', async () => {
     const limits = createFaceLimits(pool, secret)
-    for (let i = 0; i < 30; i++) await limits.ip('test-ip')
-    await assert.rejects(createFaceLimits(pool, secret).ip('test-ip'), error => error.status === 429)
+    await limits.ip('test-ip')
+    const [rows] = await pool.query('SELECT TIMESTAMPDIFF(SECOND,NOW(3),expires_at) AS remaining FROM auth_rate_limits WHERE hits=1 AND expires_at>NOW(3)')
+    assert.ok(rows.some(row => row.remaining >= 295 && row.remaining <= 300))
+    for (let i = 1; i < 15; i++) await limits.ip('test-ip')
+    await assert.rejects(createFaceLimits(pool, secret).ip('test-ip'), error => error.status === 429 && error.retryAfter === 300)
+  })
+  await t.test('account window expires after five minutes and resets', async () => {
+    const limits = createFaceLimits(pool, secret)
+    await limits.account('window-test')
+    const [rows] = await pool.query('SELECT TIMESTAMPDIFF(SECOND,NOW(3),expires_at) AS remaining FROM auth_rate_limits WHERE hits=1 AND expires_at>NOW(3)')
+    assert.ok(rows.some(row => row.remaining >= 295 && row.remaining <= 300))
+    await pool.query('UPDATE auth_rate_limits SET expires_at=DATE_SUB(NOW(3), INTERVAL 1 SECOND)')
+    for (let i=0; i<15; i++) await limits.account('window-test')
+    await assert.rejects(limits.account('window-test'), error => error.status === 429 && error.retryAfter === 300)
   })
   await t.test('existing email challenge generation and one-time verification still work', async () => {
     let code

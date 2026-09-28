@@ -48,7 +48,7 @@ export function createAuthRouter(users: UserLookup, secret: string, codes?: Code
 
   const faceFailure = (res: Response, error: unknown) => {
     const status = error instanceof FaceAuthError ? error.status : 401
-    if (status === 429) res.set('Retry-After', '900')
+    if (status === 429) res.set('Retry-After', String(error instanceof FaceAuthError ? error.retryAfter : 300))
     if (!(error instanceof FaceAuthError)) console.warn('Face authentication', { code: 'InternalFailure' })
     res.status(status).json({ message: status === 429 ? 'Too many attempts. Try again later.' : FACE_FAILURE })
   }

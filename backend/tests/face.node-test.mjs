@@ -32,8 +32,8 @@ function fixture(verify = async () => true) {
   const logs = []
   const attempts = new Map()
   const limits = {
-    async ip(ip) { const key = `ip:${ip}`; const n = (attempts.get(key) || 0) + 1; attempts.set(key, n); if (n > 30) throw new FaceAuthError(429) },
-    async account(account) { const n = (attempts.get(account) || 0) + 1; attempts.set(account, n); if (n > 5) throw new FaceAuthError(429) },
+    async ip(ip) { const key = `ip:${ip}`; const n = (attempts.get(key) || 0) + 1; attempts.set(key, n); if (n > 15) throw new FaceAuthError(429) },
+    async account(account) { const n = (attempts.get(account) || 0) + 1; attempts.set(account, n); if (n > 15) throw new FaceAuthError(429) },
   }
   const users = { byAccount: async a => a === user.username ? { ...user } : null, byId: async id => id === user.id ? { ...user } : null }
   return { user, logs, users, faces: createFaceAuth(users, verify, limits, event => logs.push(event)) }
@@ -95,15 +95,27 @@ test('PersonId, role, URL and other extra fields are rejected without calling th
   assert.equal((await call('/api/auth/face/login?PersonId=admin', { account: 'doctor', image })).status, 400)
   assert.equal(calls, 0)
 })
-test('five failed attempts exhaust account budget; no JWT on the sixth attempt', async t => {
+test('fifteen failed attempts exhaust account budget; no JWT on the sixteenth attempt', async t => {
   let calls = 0
   const call = await serve(t, fixture(async () => { calls++; return false }))
-  for (let n = 0; n < 5; n++) assert.equal((await call('/api/auth/face/login', { account: 'doctor', image })).status, 401)
+  for (let n = 0; n < 15; n++) assert.equal((await call('/api/auth/face/login', { account: 'doctor', image })).status, 401)
   const result = await call('/api/auth/face/login', { account: 'doctor', image })
   assert.equal(result.status, 429)
-  assert.equal(result.headers.get('retry-after'), '900')
+  assert.equal(result.headers.get('retry-after'), '300')
   assert.equal(result.body.token, undefined)
-  assert.equal(calls, 5)
+  assert.equal(calls, 15)
+})
+test('IP budget is shared across accounts and blocks the sixteenth request', async t => {
+  let calls = 0
+  const call = await serve(t, fixture(async () => { calls++; return true }))
+  for (let n = 0; n < 15; n++) {
+    assert.equal((await call('/api/auth/face/login', { account: `unknown-${n}`, image })).status, 401)
+  }
+  const result = await call('/api/auth/face/login', { account: 'doctor', image })
+  assert.equal(result.status, 429)
+  assert.equal(result.headers.get('retry-after'), '300')
+  assert.equal(result.body.token, undefined)
+  assert.equal(calls, 0)
 })
 test('role/status/mapping are reloaded after the cloud call', async () => {
   for (const change of [f => { f.user.status = 'disabled' }, f => { f.user.tencent_person_id = 'different-person' }]) {

@@ -4,7 +4,7 @@ import { CloudFaceError, type FaceVerifier } from './tencent-face.js'
 export const FACE_FAILURE = 'Face verification failed. Please retry or use another sign-in method.'
 export const MAX_FACE_BASE64 = 2_800_000
 export class FaceAuthError extends Error {
-  constructor(public status = 401) { super(status === 429 ? 'Too many attempts. Try again later.' : FACE_FAILURE) }
+  constructor(public status = 401, public retryAfter = 300) { super(status === 429 ? 'Too many attempts. Try again later.' : FACE_FAILURE) }
 }
 export interface FaceLimits {
   ip(ip: string): Promise<void>
