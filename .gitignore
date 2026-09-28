@@ -1,6 +1,8 @@
 node_modules/
 backend/.env
 backend/dist/
+backend/data/open-datasets/
+backend/data/ddinter/
 node_modules.incomplete-install*/
 dist/
 .vite/

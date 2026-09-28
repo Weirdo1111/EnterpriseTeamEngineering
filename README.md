@@ -54,6 +54,22 @@ Vitest covers persistence, version migration, atomic bulk operations, failures, 
 
 Browser checks cover combined filters and empty results; creating/editing and refresh; cancel protection and allergy validation; bulk operations and selection clearing; deep links and invalid IDs; administrator access; and layouts at 1440px, 1024px, and 390px. Recheck consultation, records, remote consultation, and health management after integration.
 
+## Medical Records and Review Workflow
+
+The medical record module now uses an asynchronous service boundary rather than mutating Pinia state directly. The local adapter in `src/services/records.ts` mirrors the contract expected from the future backend and stores demo records under `doctor-platform-medical-records-v1`.
+
+- Physicians and senior physicians can create drafts and edit only `draft` or `returned` records. Administrators are read-only.
+- Submission requires complete clinical fields and at least one active order.
+- Only senior physicians can perform `pending -> approved/returned` and `approved -> archived` transitions.
+- Every write uses an expected version to detect stale concurrent edits.
+- Medical orders retain creation, update, and stop metadata instead of being deleted.
+- Reviews retain reviewer, decision, note, and timestamp history.
+- Storage writes are atomic from the UI perspective: failed persistence does not update Pinia state or append a success audit entry.
+
+`src/services/clinical-ai.ts` is a deterministic, traceable fallback adapter for draft generation. It produces structured fields, source IDs, and safety warnings without prescribing medication doses. Replace it with the planned FastAPI RAG endpoint while preserving the `ClinicalAiService` contract. AI output remains a draft and cannot bypass physician review.
+
+The production backend should enforce the same role permissions, state transitions, validation, optimistic locking, and audit events. Frontend checks are usability controls, not a security boundary.
+
 ## Technology Stack
 
 - Vue 3
@@ -64,6 +80,9 @@ Browser checks cover combined filters and empty results; creating/editing and re
 - Element Plus
 - ECharts
 - @lucide/vue
+- Express 5 + TypeScript
+- MySQL 8 or MariaDB 10.4+
+- JWT + Argon2id
 
 ## Local Development
 
@@ -77,6 +96,10 @@ Default URL:
 ```text
 http://127.0.0.1:5173/
 ```
+
+The frontend runs in local demo mode by default. For authenticated MySQL-backed records, configure `VITE_API_BASE_URL`, apply the migrations, and start the backend as documented in `backend/README.md`.
+
+The authenticated AI Assistant supports a MariaDB-backed RAG knowledge base with PPTX/PDF/DOCX ingestion, Ark embeddings, hybrid retrieval, source citations, audited queries, and a retrieval-only fallback when text generation is rate limited.
 
 ## Build
 

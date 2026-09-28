@@ -15,6 +15,7 @@ const clinicalStore = useClinicalStore()
 const draftMessage = shallowRef('')
 const historyVisible = shallowRef(false)
 const summaryUpdated = shallowRef(false)
+const generatingRecord = shallowRef(false)
 
 const actor = computed(() => ({ name: authStore.profile.name, role: authStore.roleLabel, department: authStore.profile.department }))
 const selectedSession = computed(() => clinicalStore.selectedConsultation)
@@ -37,7 +38,7 @@ function selectSession(id: string) {
 function startSession() {
   if (!canOperate.value) return
   clinicalStore.startConsultation(selectedSession.value.id, actor.value)
-  ElMessage.success('Consultation accepted. The record is now saving automatically.')
+  ElMessage.success('Patient visit accepted.')
 }
 
 function sendMessage() {
@@ -65,14 +66,19 @@ function refreshSummary() {
 function finishSession() {
   if (!canOperate.value) return
   clinicalStore.completeConsultation(selectedSession.value.id, actor.value)
-  ElMessage.success('Consultation completed and record saved.')
+  ElMessage.success('Patient visit completed in this demo session.')
 }
 
-function generateRecord() {
+async function generateRecord() {
   if (!canOperate.value) return
-  const record = clinicalStore.createAiRecord(actor.value, selectedPatient.value.id)
-  ElMessage.success('Medical record draft generated. Review it before submission.')
-  router.push({ path: '/records', query: { record: record.id } })
+  generatingRecord.value = true
+  try {
+    const record = await clinicalStore.createAiRecord(actor.value, selectedPatient.value.id)
+    ElMessage.success('Medical record draft generated. Review it before submission.')
+    router.push({ path: '/records', query: { record: record.id } })
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : 'Unable to create the medical record draft.')
+  } finally { generatingRecord.value = false }
 }
 
 function exportSession() {
@@ -86,14 +92,14 @@ function exportSession() {
 
 <template>
   <div class="view-stack">
-    <PageHeader title="Online Consultation" description="Handle online patient consultations; messages and uploaded documents are saved automatically">
+    <PageHeader title="Patient Online Visit" description="Patient messages and visit records">
       <el-button :icon="History" @click="historyVisible = true">History</el-button>
       <el-button :icon="Download" @click="exportSession">Export Current Record</el-button>
     </PageHeader>
 
     <section class="consultation-layout">
       <article class="panel session-panel">
-        <div class="panel-header"><div><h2 class="panel-title">Consultation Queue</h2><p class="panel-subtitle">{{ activeSessions.length }} sessions to process</p></div></div>
+        <div class="panel-header"><div><h2 class="panel-title">Patient Visit Queue</h2><p class="panel-subtitle">{{ activeSessions.length }} sessions to process</p></div></div>
         <div class="session-list">
           <button v-for="session in activeSessions" :key="session.id" type="button" :class="{ active: session.id === selectedSession.id }" @click="selectSession(session.id)">
             <span class="session-avatar">{{ session.patientName.slice(-1) }}</span>
@@ -109,7 +115,7 @@ function exportSession() {
           <div><h2 class="panel-title">{{ selectedSession.patientName }} · {{ selectedSession.complaint }}</h2><p class="panel-subtitle">Session ID {{ selectedSession.id }}</p></div>
           <div class="session-actions">
             <el-button v-if="selectedSession.status === 'waiting'" :icon="Play" size="small" type="primary" :disabled="!canOperate" @click="startSession">Accept</el-button>
-            <el-button v-else-if="selectedSession.status === 'active'" size="small" :disabled="!canOperate" @click="finishSession">End Consultation</el-button>
+            <el-button v-else-if="selectedSession.status === 'active'" size="small" :disabled="!canOperate" @click="finishSession">End Patient Visit</el-button>
             <el-tag v-else type="info" effect="plain">Completed</el-tag>
           </div>
         </div>
@@ -137,7 +143,7 @@ function exportSession() {
           <div class="panel-body">
             <ul class="summary-list"><li v-for="item in aiSummary" :key="item">{{ item }}</li></ul>
             <p v-if="summaryUpdated" class="updated-line">Updated from the latest conversation</p>
-            <div class="assist-actions"><el-button size="small" @click="refreshSummary">Refresh Summary</el-button><el-button :icon="FilePlus2" size="small" type="primary" :disabled="!canOperate" @click="generateRecord">Generate Record Draft</el-button></div>
+            <div class="assist-actions"><el-button size="small" @click="refreshSummary">Refresh Summary</el-button><el-button :icon="FilePlus2" size="small" type="primary" :loading="generatingRecord" :disabled="!canOperate" @click="generateRecord">Generate Record Draft</el-button></div>
           </div>
         </article>
       </aside>

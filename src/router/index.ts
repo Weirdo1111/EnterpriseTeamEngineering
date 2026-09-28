@@ -36,7 +36,7 @@ const router = createRouter({
           path: 'consultation',
           name: 'consultation',
           component: () => import('@/views/ConsultationView.vue'),
-          meta: { title: 'Online Consultation' },
+          meta: { title: 'Patient Online Visit' },
         },
         {
           path: 'records',
@@ -54,7 +54,7 @@ const router = createRouter({
           path: 'remote-consultations',
           name: 'remote-consultations',
           component: () => import('@/views/RemoteConsultationsView.vue'),
-          meta: { title: 'Remote Consultation' },
+          meta: { title: 'Physician Group Consultation' },
         },
         {
           path: 'health-management',
@@ -77,8 +77,14 @@ const router = createRouter({
   ],
 })
 
+let sessionChecked = false
+
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
+  if (!sessionChecked && authStore.isAuthenticated) {
+    sessionChecked = true
+    try { await authStore.restoreSession() } catch { await authStore.logout() }
+  }
   const isPublic = Boolean(to.meta.public)
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {

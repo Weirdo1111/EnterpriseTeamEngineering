@@ -28,5 +28,14 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Test patient information
+      - name: Test domain services
         run: npm test
+
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+
+      - name: Build backend
+        run: npm run build --prefix backend
+
+      - name: Test backend services
+        run: npm test --prefix backend

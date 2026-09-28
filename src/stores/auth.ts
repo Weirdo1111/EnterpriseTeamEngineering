@@ -1,6 +1,7 @@
 import { computed, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import type { Role } from '@/types/clinical'
+import { authApi, type AuthenticatedUser } from '@/services/auth'
 
 interface UserProfile {
   name: string
@@ -33,9 +34,10 @@ const roleProfiles: Record<Role, UserProfile> = {
 export const useAuthStore = defineStore('auth', () => {
   const token = shallowRef(localStorage.getItem('doctor-platform-token') ?? '')
   const currentRole = shallowRef<Role>((localStorage.getItem('doctor-platform-role') as Role) ?? 'doctor')
+  const currentUser = shallowRef<AuthenticatedUser | null>(null)
 
   const isAuthenticated = computed(() => token.value.length > 0)
-  const profile = computed(() => roleProfiles[currentRole.value])
+  const profile = computed(() => ({ ...roleProfiles[currentRole.value], name: currentUser.value?.name ?? roleProfiles[currentRole.value].name }))
   const roleLabel = computed(() => {
     if (currentRole.value === 'admin') return 'Administrator'
     if (currentRole.value === 'seniorDoctor') return 'Senior Physician'
@@ -49,8 +51,29 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('doctor-platform-role', role)
   }
 
-  function logout() {
+  async function loginWithPassword(account: string, password: string) {
+    const result = await authApi.login(account, password)
+    currentUser.value = result.user
+    currentRole.value = result.user.role
+    token.value = result.token
+    localStorage.setItem('doctor-platform-token', result.token)
+    localStorage.setItem('doctor-platform-role', result.user.role)
+  }
+
+  async function restoreSession() {
+    if (!authApi.enabled || !token.value || token.value.startsWith('demo-')) return
+    const result = await authApi.me()
+    currentUser.value = result.user
+    currentRole.value = result.user.role
+    localStorage.setItem('doctor-platform-role', result.user.role)
+  }
+
+  async function logout() {
+    if (authApi.enabled && token.value && !token.value.startsWith('demo-')) {
+      try { await authApi.logout() } catch { /* Local logout must still succeed. */ }
+    }
     token.value = ''
+    currentUser.value = null
     localStorage.removeItem('doctor-platform-token')
   }
 
@@ -60,7 +83,10 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     profile,
     roleLabel,
+    usesBackend: authApi.enabled,
     login,
+    loginWithPassword,
+    restoreSession,
     logout,
   }
 })

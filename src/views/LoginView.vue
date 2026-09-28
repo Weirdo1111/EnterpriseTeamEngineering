@@ -19,7 +19,7 @@ const faceVerified = shallowRef(false)
 const smsSent = shallowRef(false)
 const form = reactive({
   account: 'doctor.demo',
-  password: '123456',
+  password: '',
   captcha: '0926',
   mobile: '138****6026',
   smsCode: '',
@@ -63,15 +63,17 @@ function verifyFace() {
   }, 650)
 }
 
-function submitLogin() {
+async function submitLogin() {
   if (!canSubmit.value) return
   loading.value = true
-  window.setTimeout(() => {
-    authStore.login(selectedRole.value)
-    loading.value = false
+  try {
+    if (method.value === 'password' && authStore.usesBackend) await authStore.loginWithPassword(form.account, form.password)
+    else authStore.login(selectedRole.value)
     ElMessage.success('Signed in successfully')
-    router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
-  }, 420)
+    await router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : 'Sign-in failed.')
+  } finally { loading.value = false }
 }
 </script>
 
@@ -143,7 +145,7 @@ function submitLogin() {
             </button>
           </template>
 
-          <el-form-item label="Demo Role" class="role-select">
+          <el-form-item v-if="!authStore.usesBackend || method !== 'password'" label="Demo Role" class="role-select">
             <el-select v-model="selectedRole" size="large">
               <el-option v-for="role in roleOptions" :key="role.value" :label="role.label" :value="role.value" />
             </el-select>

@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
-  Video,
+  UsersRound,
   X,
 } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
@@ -39,9 +39,9 @@ const navGroups = [
     label: 'Clinical Services',
     items: [
       { path: '/patients', label: 'Patient Information Management', icon: Users },
-      { path: '/consultation', label: 'Online Consultation', icon: MessageSquareText },
+      { path: '/consultation', label: 'Patient Online Visit', icon: MessageSquareText },
       { path: '/records', label: 'Medical Records', icon: FileText },
-      { path: '/remote-consultations', label: 'Remote Consultation', icon: Video },
+      { path: '/remote-consultations', label: 'Group Case Review', icon: UsersRound },
       { path: '/health-management', label: 'Health Management', icon: HeartPulse },
     ],
   },
