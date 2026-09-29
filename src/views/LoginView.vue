@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { CheckCircle2, LockKeyhole, ScanFace, ShieldCheck, Smartphone, Stethoscope } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
+import { authApi } from '@/services/auth'
 import type { Role } from '@/types/clinical'
 
 type LoginMethod = 'password' | 'sms' | 'face'
@@ -14,12 +15,13 @@ const authStore = useAuthStore()
 const method = shallowRef<LoginMethod>('password')
 const selectedRole = shallowRef<Role>('doctor')
 const loading = shallowRef(false)
+const loginError = shallowRef('')
 const faceChecking = shallowRef(false)
 const faceVerified = shallowRef(false)
 const smsSent = shallowRef(false)
 const form = reactive({
-  account: 'doctor.demo',
-  password: '',
+  account: authStore.usesBackend ? '' : 'doctor.demo',
+  password: authStore.usesBackend ? '' : '123456',
   captcha: '0926',
   mobile: '138****6026',
   smsCode: '',
@@ -38,23 +40,28 @@ const roleOptions = [
 ]
 
 const canSubmit = computed(() => {
+  if (loading.value || authApi.configurationError) return false
+  if (authStore.usesBackend) return method.value === 'password' && Boolean(form.account.trim() && form.password)
   if (method.value === 'password') return Boolean(form.account && form.password && form.captcha.length === 4)
   if (method.value === 'sms') return Boolean(form.mobile && form.smsCode.length === 4)
   return Boolean(form.account && faceVerified.value)
 })
 
 function switchMethod(value: LoginMethod) {
+  if (authStore.usesBackend && value !== 'password') return
   method.value = value
   faceVerified.value = false
 }
 
 function sendSmsCode() {
+  if (authStore.usesBackend) return
   smsSent.value = true
   form.smsCode = '0926'
   ElMessage.success('Demo verification code entered: 0926')
 }
 
 function verifyFace() {
+  if (authStore.usesBackend) return
   faceChecking.value = true
   window.setTimeout(() => {
     faceChecking.value = false
@@ -66,13 +73,15 @@ function verifyFace() {
 async function submitLogin() {
   if (!canSubmit.value) return
   loading.value = true
+  loginError.value = ''
   try {
-    if (method.value === 'password' && authStore.usesBackend) await authStore.loginWithPassword(form.account, form.password)
+    if (authStore.usesBackend) await authStore.loginWithPassword(form.account.trim(), form.password)
     else authStore.login(selectedRole.value)
-    ElMessage.success('Signed in successfully')
-    await router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
+    const requested = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
+    const destination = requested.startsWith('/') && !requested.startsWith('//') && !requested.startsWith('/login') ? requested : '/'
+    await router.replace(destination)
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : 'Sign-in failed.')
+    loginError.value = error instanceof Error ? error.message : 'Unable to sign in. Please try again.'
   } finally { loading.value = false }
 }
 </script>
@@ -97,15 +106,17 @@ async function submitLogin() {
         <li><CheckCircle2 :size="17" /><span>AI-generated content requires physician confirmation before use</span></li>
       </ul>
 
-      <p class="intro-foot">Training environment · All patient information shown is simulated</p>
+      <p class="intro-foot">{{ authStore.usesBackend ? 'Server account verification · Patient consultations use local demonstration data' : 'Training environment · All patient information shown is simulated' }}</p>
     </section>
 
     <section class="login-area">
       <div class="login-panel">
         <div class="login-heading">
           <div class="login-mark"><ShieldCheck :size="22" /></div>
-          <div><h2>Doctor Workspace</h2><p>Choose a verification method to enter the system</p></div>
+          <div><h2>Doctor Workspace</h2><p>{{ authStore.usesBackend ? 'Sign in with your server account' : 'Choose a demonstration sign-in method' }}</p></div>
         </div>
+        <el-alert v-if="loginError || authStore.sessionError || authApi.configurationError" :title="loginError || authStore.sessionError || authApi.configurationError" type="error" :closable="false" show-icon />
+        <p class="mode-note">{{ authStore.usesBackend ? 'Password sign-in is connected to the configured server. SMS and facial sign-in are not connected.' : 'Local demo: these sign-in methods do not verify a real account, send SMS, or recognize a face.' }}</p>
 
         <div class="method-tabs" role="tablist" aria-label="Sign-in methods">
           <button
@@ -113,17 +124,18 @@ async function submitLogin() {
             :key="item.value"
             type="button"
             :class="{ active: method === item.value }"
+            :disabled="loading || (authStore.usesBackend && item.value !== 'password')"
             @click="switchMethod(item.value)"
           >
             <component :is="item.icon" :size="16" />{{ item.label }}
           </button>
         </div>
 
-        <el-form label-position="top" class="login-form" @submit.prevent="submitLogin">
+        <el-form label-position="top" class="login-form" :disabled="loading" @submit.prevent="submitLogin">
           <template v-if="method === 'password'">
-            <el-form-item label="Account"><el-input v-model="form.account" size="large" /></el-form-item>
-            <el-form-item label="Password"><el-input v-model="form.password" size="large" type="password" show-password /></el-form-item>
-            <el-form-item label="Verification Code"><el-input v-model="form.captcha" size="large" maxlength="4" /></el-form-item>
+            <el-form-item label="Account"><el-input v-model="form.account" aria-label="Account" autocomplete="username" size="large" /></el-form-item>
+            <el-form-item label="Password"><el-input v-model="form.password" aria-label="Password" autocomplete="current-password" size="large" type="password" show-password @keydown.enter.prevent="submitLogin" /></el-form-item>
+            <el-form-item v-if="!authStore.usesBackend" label="Verification Code (demo)"><el-input v-model="form.captcha" size="large" maxlength="4" /></el-form-item>
           </template>
 
           <template v-else-if="method === 'sms'">
@@ -145,7 +157,7 @@ async function submitLogin() {
             </button>
           </template>
 
-          <el-form-item v-if="!authStore.usesBackend || method !== 'password'" label="Demo Role" class="role-select">
+          <el-form-item v-if="!authStore.usesBackend" label="Demo Role" class="role-select">
             <el-select v-model="selectedRole" size="large">
               <el-option v-for="role in roleOptions" :key="role.value" :label="role.label" :value="role.value" />
             </el-select>
@@ -154,13 +166,15 @@ async function submitLogin() {
           <el-button class="login-button" type="primary" size="large" :loading="loading" :disabled="!canSubmit" @click="submitLogin">Enter Workspace</el-button>
         </el-form>
 
-        <p class="security-note"><ShieldCheck :size="15" />Sign-in activity is recorded in your personal audit log</p>
+        <p class="security-note"><ShieldCheck :size="15" />{{ authStore.usesBackend ? 'Your name and role come from the verified server account.' : 'Demo roles share fictional data in this browser.' }}</p>
       </div>
     </section>
   </main>
 </template>
 
 <style scoped>
+.mode-note { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 12px 0; }
+.method-tabs button:disabled { cursor: not-allowed; opacity: .55; }
 .login-page {
   display: grid;
   grid-template-columns: minmax(420px, 1.1fr) minmax(430px, .9fr);
