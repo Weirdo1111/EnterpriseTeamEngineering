@@ -39,6 +39,8 @@ const form = reactive({
   medicationListConfirmed: false,
   egfr: null as number | null,
 })
+let initialPatientSelection = true
+const requestedSessionUnavailable = shallowRef(false)
 const busy = shallowRef(false)
 const draft = shallowRef<ClinicalDraftSuggestion | null>(null)
 const summary = shallowRef<ConsultationSummary | null>(null)
@@ -74,7 +76,13 @@ function clearResult() {
 
 watch(() => form.patientId, id => {
   clinicalStore.selectPatient(id)
-  form.consultationId = clinicalStore.consultations.find(item => item.patientId === id)?.id ?? ''
+  const requested = initialPatientSelection && typeof route.query.session === 'string' ? route.query.session : undefined
+  initialPatientSelection = false
+  const matchingSessions = clinicalStore.consultations.filter(item => item.patientId === id)
+  form.consultationId = requested !== undefined
+    ? matchingSessions.find(item => item.id === requested)?.id ?? ''
+    : matchingSessions[0]?.id ?? ''
+  requestedSessionUnavailable.value = requested !== undefined && !form.consultationId
   const current = patient.value
   form.similarityQuery = [current?.diseaseTags.join(' '), current?.symptoms].filter(Boolean).join(' ').slice(0, 500)
   form.currentMedications = []
@@ -188,7 +196,7 @@ onMounted(async () => {
                 <strong>Consultation {{ consultation.id }}</strong>
                 <p v-for="message in consultation.messages" :key="message.id"><b>{{ message.sender === 'patient' ? 'Patient' : message.sender === 'doctor' ? 'Physician' : 'Assistant' }}:</b> {{ message.content }}</p>
               </div>
-              <p v-else class="empty-note">No consultation is linked to this patient. Add physician notes to continue.</p>
+              <p v-else class="empty-note">{{ requestedSessionUnavailable ? 'The requested consultation is unavailable for this patient. Select a consultation or add physician notes to continue.' : 'No consultation is linked to this patient. Add physician notes to continue.' }}</p>
               <label class="field-label"><span>Physician notes</span><el-input v-model="form.notes" type="textarea" :rows="4" resize="none" maxlength="4000" show-word-limit placeholder="Add findings from the consultation or examination" :disabled="!canOperate" /></label>
             </template>
             <label v-else-if="form.task === 'cases'" class="field-label"><span>Clinical features for matching</span><el-input v-model="form.similarityQuery" type="textarea" :rows="3" resize="none" maxlength="500" show-word-limit :disabled="!canOperate" /></label>

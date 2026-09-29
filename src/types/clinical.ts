@@ -52,12 +52,35 @@ export interface Patient extends PatientInput {
   }
 }
 
+export interface ConsultationImage {
+  id: string
+  name: string
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp'
+  size: number
+  width: number
+  height: number
+}
+
 export interface ConsultationMessage {
   id: string
   sender: 'doctor' | 'patient' | 'ai'
   content: string
   time: string
   attachment?: string
+  image?: ConsultationImage
+}
+
+export interface ConsultationSummaryInput {
+  chiefComplaint: string
+  consultationNotes: string
+  assessment: string
+  plan: string
+  followUp: string
+}
+
+export interface ConsultationSummary extends ConsultationSummaryInput {
+  authorName: string
+  updatedAt: string
 }
 
 export interface ConsultationSession {
@@ -69,6 +92,7 @@ export interface ConsultationSession {
   unread: number
   updatedAt: string
   messages: ConsultationMessage[]
+  summary?: ConsultationSummary
 }
 
 export interface MedicalOrder {
@@ -111,6 +135,8 @@ export interface MedicalRecord {
   orders: MedicalOrder[]
   status: RecordStatus
   aiGenerated: boolean
+  sourceConsultationId?: string
+  sourceSummaryUpdatedAt?: string
   aiMetadata?: AiGenerationMetadata
   reviewNote?: string
   reviewHistory: RecordReview[]

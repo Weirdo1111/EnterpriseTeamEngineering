@@ -1,7 +1,9 @@
 import { patientsSeed } from '@/mocks/patients'
+import { consultationService, type DemoConsultationRequestInput, type DemoConsultationMessageInput } from '@/services/consultations'
+import { patientService, patientStorageWarning } from '@/services/patients'
+import { consultationRecordService } from '@/services/consultation-records'
 import { recordsSeed } from '@/mocks/records'
 import { clinicalAiService, type ClinicalDraftSuggestion } from '@/services/clinical-ai'
-import { patientService, patientStorageWarning } from '@/services/patients'
 import { medicalRecordService } from '@/services/records'
 import { useAuthStore } from '@/stores/auth'
 import type { PatientInput, ClassificationChange } from '@/types/clinical'
@@ -10,6 +12,8 @@ import { defineStore } from 'pinia'
 import type {
   AuditLog,
   ConsultationSession,
+  ConsultationImage,
+  ConsultationSummaryInput,
   HealthAssessment,
   HealthPlan,
   MedicalOrder,
@@ -31,49 +35,6 @@ interface AuditActor {
 
 
 
-const consultationSeed: ConsultationSession[] = [
-  {
-    id: 'C-20260912-01',
-    patientId: 'P-202609-001',
-    patientName: 'Jianguo Zhang',
-    complaint: 'Elevated morning blood pressure and head pressure',
-    status: 'active',
-    unread: 0,
-    updatedAt: '09:19',
-    messages: [
-      { id: 'm1', sender: 'patient', content: 'Doctor, my blood pressure has still been high in the mornings for the past two days, and I feel some pressure in my head.', time: '09:12' },
-      { id: 'm2', sender: 'doctor', content: 'What was your exact blood pressure this morning? Did you take your medication on time last night?', time: '09:14' },
-      { id: 'm3', sender: 'patient', content: 'It was 152/94 this morning. I took my medicine last night, but I did not sleep well.', time: '09:16', attachment: 'Home-Blood-Pressure-Log.jpg' },
-      { id: 'm4', sender: 'doctor', content: 'Please record your morning and bedtime blood pressure for three consecutive days. I will review it with your medication and sleep pattern before adjusting the plan.', time: '09:19' },
-    ],
-  },
-  {
-    id: 'C-20260912-02',
-    patientId: 'P-202609-003',
-    patientName: 'Desheng Wang',
-    complaint: 'Worsening cough and exertional dyspnea',
-    status: 'waiting',
-    unread: 2,
-    updatedAt: '09:31',
-    messages: [
-      { id: 'm5', sender: 'patient', content: 'Doctor, my cough has worsened over the past three days, and I get more breathless when walking.', time: '09:28' },
-      { id: 'm6', sender: 'patient', content: 'My oxygen saturation at home is 91%. Do I need to go to the hospital?', time: '09:31' },
-    ],
-  },
-  {
-    id: 'C-20260911-03',
-    patientId: 'P-202609-002',
-    patientName: 'Xiulan Chen',
-    complaint: 'Post-PCI follow-up',
-    status: 'completed',
-    unread: 0,
-    updatedAt: 'Yesterday 16:32',
-    messages: [
-      { id: 'm7', sender: 'patient', content: 'I have had no recent chest pain, and walking feels easier than last month.', time: '16:18' },
-      { id: 'm8', sender: 'doctor', content: 'Continue taking your medication regularly and repeat the lipid panel and ECG within two weeks.', time: '16:32' },
-    ],
-  },
-]
 
 const auditSeed: AuditLog[] = [
   { id: 'L-901', user: 'Dr. Riley Lin', role: 'Physician', department: 'Geriatric Medicine', action: 'Viewed patient details', resource: 'P-202609-001', ip: '10.12.8.24', time: '2026-09-12 09:10', result: 'Success' },
@@ -158,8 +119,16 @@ export const useClinicalStore = defineStore('clinical', () => {
   let patientsLoaded = false
   let loadingPatients: Promise<void> | undefined
 
-  const consultations = reactive<ConsultationSession[]>(structuredClone(consultationSeed))
-  const records = reactive<MedicalRecord[]>(structuredClone(recordsSeed))
+  const consultations = reactive<ConsultationSession[]>([])
+  const consultationsLoading = shallowRef(false)
+  const consultationsError = shallowRef('')
+  let consultationsLoaded = false
+  let loadingConsultations: Promise<void> | undefined
+  const records = reactive<MedicalRecord[]>(useAuthStore().usesBackend ? [] : structuredClone(recordsSeed))
+  const consultationRecordsLoading = shallowRef(false)
+  const consultationRecordsError = shallowRef('')
+  let consultationRecordsLoaded = false
+  let loadingConsultationRecords: Promise<void> | undefined
   const recordsLoading = shallowRef(false)
   const recordsError = shallowRef('')
   let recordsLoaded = false
@@ -171,11 +140,11 @@ export const useClinicalStore = defineStore('clinical', () => {
   const reminders = reactive<ReminderTask[]>(structuredClone(remindersSeed))
   const assessments = reactive<HealthAssessment[]>(structuredClone(assessmentsSeed))
   const selectedPatientId = shallowRef(patients[0]!.id)
-  const selectedConsultationId = shallowRef(consultations[0]!.id)
+  const selectedConsultationId = shallowRef('')
 
   const selectedPatient = computed<Patient>(() => patients.find((patient) => patient.id === selectedPatientId.value) ?? patients[0]!)
-  const selectedConsultation = computed<ConsultationSession>(() => consultations.find((item) => item.id === selectedConsultationId.value) ?? consultations[0]!)
-  const messages = computed(() => selectedConsultation.value.messages)
+  const selectedConsultation = computed(() => consultations.find((item) => item.id === selectedConsultationId.value))
+  const messages = computed(() => selectedConsultation.value?.messages ?? [])
   const warningPatients = computed(() => patients.filter((patient) => patient.status !== 'stable'))
   const pendingRecords = computed(() => records.filter((record) => record.status === 'pending'))
   const waitingConsultations = computed(() => consultations.filter((item) => item.status === 'waiting'))
@@ -266,6 +235,27 @@ export const useClinicalStore = defineStore('clinical', () => {
     recordAudit(actor, 'Update Patient Classifications', updated.map(patient => patient.id).join(', '))
   }
 
+  async function loadConsultations(force = false) {
+    if (loadingConsultations) return loadingConsultations
+    if (consultationsLoaded && !force) return
+    consultationsLoading.value = true
+    consultationsError.value = ''
+    loadingConsultations = (async () => {
+      try {
+        const incoming = await consultationService.list()
+        consultations.splice(0, consultations.length, ...incoming)
+        if (!consultations.some(item => item.id === selectedConsultationId.value)) {
+          selectedConsultationId.value = (consultations.find(item => item.status !== 'completed') ?? consultations[0])?.id ?? ''
+        }
+        consultationsLoaded = true
+      } catch (error) {
+        consultationsError.value = error instanceof Error ? error.message : 'Unable to load local consultation history.'
+        throw error
+      } finally { consultationsLoading.value = false; loadingConsultations = undefined }
+    })()
+    return loadingConsultations
+  }
+
   function syncRecord(record: MedicalRecord) {
     const current = records.find(item => item.id === record.id)
     if (current) Object.assign(current, structuredClone(record))
@@ -280,7 +270,9 @@ export const useClinicalStore = defineStore('clinical', () => {
     recordsError.value = ''
     loadingRecords = (async () => {
       try {
-        records.splice(0, records.length, ...await medicalRecordService.list())
+        const incoming = await medicalRecordService.list()
+        const linked = records.filter(record => record.sourceConsultationId)
+        records.splice(0, records.length, ...linked, ...incoming.filter(record => !record.sourceConsultationId))
         recordsLoaded = true
       } catch (error) {
         recordsError.value = error instanceof Error ? error.message : 'Failed to load medical records.'
@@ -294,42 +286,127 @@ export const useClinicalStore = defineStore('clinical', () => {
   }
 
   function selectConsultation(id: string) {
-    selectedConsultationId.value = id
-    const session = consultations.find((item) => item.id === id)
-    if (session) {
-      session.unread = 0
-      selectedPatientId.value = session.patientId
-    }
-  }
-
-  function addMessage(content: string, sender: 'doctor' | 'patient' | 'ai' = 'doctor', attachment?: string) {
-    selectedConsultation.value.messages.push({
-      id: `m${Date.now()}`,
-      sender,
-      content,
-      attachment,
-      time: new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()),
-    })
-    selectedConsultation.value.updatedAt = 'Just now'
-  }
-
-  function startConsultation(id: string, actor: AuditActor) {
-    const session = consultations.find((item) => item.id === id)
+    const session = consultations.find(item => item.id === id)
     if (!session) return
-    session.status = 'active'
-    session.unread = 0
+    selectedConsultationId.value = id
+    // Historical conversations can outlive their profile. Do not select another patient implicitly.
+    if (patients.some(patient => patient.id === session.patientId)) selectedPatientId.value = session.patientId
+  }
+
+  function syncConsultation(incoming: ConsultationSession) {
+    const current = consultations.find(item => item.id === incoming.id)
+    if (current) Object.assign(current, incoming)
+    else consultations.push(incoming)
+  }
+
+  async function verifyConsultationPatient(id: string): Promise<Patient> {
+    if (typeof id !== 'string' || !id) throw new Error('A patient ID is required to create a linked consultation or record.')
+    const patient = await patientService.getById(id)
+    if (patient.id !== id) throw new Error('The patient lookup returned a different ID. Reload patient information before trying again.')
+    return patient
+  }
+
+  async function createDemoConsultation(input: DemoConsultationRequestInput, actor: AuditActor) {
+    assertPatientWrite()
+    const request = { ...input }
+    const existing = (await consultationService.list()).find(session => session.id === `C-DEMO-${request.clientRequestId.trim()}`)
+    // A retry uses the original patient-name snapshot; renaming a profile must not create a second request.
+    const patient = existing ? undefined : await verifyConsultationPatient(request.patientId)
+    const session = await consultationService.createDemoRequest({ ...request, patientName: patient?.name ?? existing!.patientName })
+    const existed = consultations.some(item => item.id === session.id)
+    if (patient) syncPatients([patient])
+    syncConsultation(session)
+    if (!existed) recordAudit(actor, 'Demo: created patient consultation request', session.id)
+    return session
+  }
+
+  async function receiveDemoConsultationMessage(id: string, input: DemoConsultationMessageInput, actor: AuditActor) {
+    const session = await consultationService.receiveDemoMessage(id, input)
+    const existed = consultations.find(item => item.id === id)?.messages.some(message => message.id === input.clientMessageId.trim())
+    syncConsultation(session)
+    if (!existed) recordAudit(actor, 'Demo: received patient consultation message', id)
+    return session
+  }
+
+  async function markConsultationRead(id: string) {
+    const session = await consultationService.markRead(id)
+    syncConsultation(session)
+    return session
+  }
+
+  async function addMessage(id: string, content: string, clientMessageId: string, actor: AuditActor) {
+    const session = await consultationService.sendMessage(id, { content, clientMessageId })
+    syncConsultation(session)
+    recordAudit(actor, 'Saved local consultation reply', id)
+  }
+
+  async function addImageMessage(id: string, content: string, clientMessageId: string, image: ConsultationImage, blob: Blob, actor: AuditActor) {
+    const session = await consultationService.sendImage(id, { content, clientMessageId, image, blob })
+    syncConsultation(session)
+    recordAudit(actor, 'Saved local consultation image', id)
+  }
+
+  async function startConsultation(id: string, actor: AuditActor) {
+    const session = await consultationService.accept(id)
+    syncConsultation(session)
     recordAudit(actor, 'Accepted online consultation', id)
   }
 
-  function completeConsultation(id: string, actor: AuditActor) {
-    const session = consultations.find((item) => item.id === id)
-    if (!session) return
-    session.status = 'completed'
+  async function saveConsultationSummary(id: string, input: ConsultationSummaryInput, actor: AuditActor) {
+    const session = await consultationService.saveSummary(id, input, actor.name)
+    syncConsultation(session)
+    recordAudit(actor, 'Saved consultation summary', id)
+  }
+
+  async function completeConsultation(id: string, actor: AuditActor) {
+    const session = await consultationService.complete(id)
+    syncConsultation(session)
     recordAudit(actor, 'Completed online consultation', id)
   }
 
-  async function createAiRecord(actor: AuditActor, patientId = selectedPatient.value.id) {
-    const patient = patients.find((item) => item.id === patientId) ?? selectedPatient.value
+  function syncConsultationRecord(incoming: MedicalRecord) {
+    const existing = records.find(record => record.id === incoming.id)
+    if (existing) Object.assign(existing, incoming)
+    else records.unshift(incoming)
+  }
+
+  async function loadConsultationRecords(force = false) {
+    if (loadingConsultationRecords) return loadingConsultationRecords
+    if (consultationRecordsLoaded && !force) return
+    consultationRecordsLoading.value = true
+    consultationRecordsError.value = ''
+    loadingConsultationRecords = (async () => {
+      try {
+        const incoming = await Promise.resolve().then(() => consultationRecordService.list())
+        const demos = records.filter(record => !record.sourceConsultationId)
+        records.splice(0, records.length, ...incoming, ...demos)
+        consultationRecordsLoaded = true
+      } catch (error) {
+        consultationRecordsError.value = error instanceof Error ? error.message : 'Unable to load consultation medical records.'
+        throw error
+      } finally { consultationRecordsLoading.value = false; loadingConsultationRecords = undefined }
+    })()
+    return loadingConsultationRecords
+  }
+
+  async function createConsultationRecord(sessionId: string, actor: AuditActor): Promise<MedicalRecord> {
+    // Read the saved summary afresh; page drafts must never become record content.
+    const sessions = await consultationService.list()
+    const session = sessions.find(item => item.id === sessionId)
+    if (!session) throw new Error('The saved consultation was not found. Reload consultations before creating a record.')
+    const existing = consultationRecordService.list().find(record => record.sourceConsultationId === sessionId)
+    const patient = existing ? undefined : await verifyConsultationPatient(session.patientId)
+    const record = consultationRecordService.create(patient ? { ...session, patientName: patient.name } : session, actor.name)
+    if (patient) syncPatients([patient])
+    syncConsultationRecord(record)
+    recordAudit(actor, 'Opened medical record from consultation summary', record.id)
+    return record
+  }
+
+  async function createAiRecord(actor: AuditActor, patientId = selectedPatientId.value) {
+    if (!patientsLoaded || patientsLoading.value || patientsError.value) throw new Error('Load patient information successfully before creating a record.')
+    const patient = patients.find((item) => item.id === patientId)
+    if (!patient) throw new Error('Patient not found. Reload patient information before creating a record.')
     const existing = records.find((record) => record.patientId === patient.id && record.aiGenerated && ['draft', 'returned'].includes(record.status))
     if (existing) return existing
     const consultation = consultations.find(item => item.patientId === patient.id)
@@ -387,8 +464,15 @@ export const useClinicalStore = defineStore('clinical', () => {
   async function saveRecord(id: string, fields: Pick<MedicalRecord, 'chiefComplaint' | 'presentIllness' | 'diagnosis'>, actor: AuditActor, submit = false) {
     const record = records.find((item) => item.id === id)
     if (!record) throw new Error('Medical record not found.')
-    let updated = await medicalRecordService.updateClinicalFields(id, fields, record.version)
-    if (submit) updated = await medicalRecordService.submit(id, updated.version)
+    let updated: MedicalRecord
+    if (record.sourceConsultationId) updated = consultationRecordService.save(id, fields, submit, record.version)
+    else {
+      updated = await medicalRecordService.updateClinicalFields(id, fields, record.version)
+      // Saving fields and submitting are separate commits. Keep the saved version
+      // even if submission fails, so the clinician can correct orders and retry.
+      syncRecord(updated)
+      if (submit) updated = await medicalRecordService.submit(id, updated.version)
+    }
     syncRecord(updated)
     recordAudit(actor, submit ? 'Submitted medical record for review' : 'Saved medical record draft', id, submit ? 'Pending Review' : 'Success')
     return updated
@@ -397,7 +481,9 @@ export const useClinicalStore = defineStore('clinical', () => {
   async function addOrder(recordId: string, order: Pick<MedicalOrder, 'type' | 'content'>, actor: AuditActor) {
     const record = records.find((item) => item.id === recordId)
     if (!record) throw new Error('Medical record not found.')
-    const updated = await medicalRecordService.addOrder(recordId, order, record.version)
+    const updated = record.sourceConsultationId
+      ? consultationRecordService.addOrder(recordId, order, record.version)
+      : await medicalRecordService.addOrder(recordId, order, record.version)
     syncRecord(updated)
     recordAudit(actor, 'Add Order', recordId)
     return updated
@@ -406,7 +492,9 @@ export const useClinicalStore = defineStore('clinical', () => {
   async function updateOrder(recordId: string, orderId: string, content: string, actor: AuditActor) {
     const record = records.find((item) => item.id === recordId)
     if (!record) throw new Error('Medical record not found.')
-    const updated = await medicalRecordService.updateOrder(recordId, orderId, content, record.version)
+    const updated = record.sourceConsultationId
+      ? consultationRecordService.updateOrder(recordId, orderId, content, record.version)
+      : await medicalRecordService.updateOrder(recordId, orderId, content, record.version)
     syncRecord(updated)
     recordAudit(actor, 'Edit Order', recordId)
     return updated
@@ -415,7 +503,9 @@ export const useClinicalStore = defineStore('clinical', () => {
   async function stopOrder(recordId: string, orderId: string, actor: AuditActor) {
     const record = records.find((item) => item.id === recordId)
     if (!record) throw new Error('Medical record not found.')
-    const updated = await medicalRecordService.stopOrder(recordId, orderId, record.version)
+    const updated = record.sourceConsultationId
+      ? consultationRecordService.stopOrder(recordId, orderId, record.version)
+      : await medicalRecordService.stopOrder(recordId, orderId, record.version)
     syncRecord(updated)
     recordAudit(actor, 'Stop Order', recordId)
     return updated
@@ -425,7 +515,10 @@ export const useClinicalStore = defineStore('clinical', () => {
     const record = records.find((item) => item.id === id)
     if (!record) throw new Error('Medical record not found.')
     if (!['approved', 'returned', 'archived'].includes(status)) throw new Error('Invalid review decision.')
-    const updated = await medicalRecordService.review(id, status as 'approved' | 'returned' | 'archived', reviewNote, record.version)
+    const decision = status as 'approved' | 'returned' | 'archived'
+    const updated = record.sourceConsultationId
+      ? consultationRecordService.review(id, decision, reviewNote, record.version)
+      : await medicalRecordService.review(id, decision, reviewNote, record.version)
     syncRecord(updated)
     const action = status === 'approved' ? 'Approved medical record' : status === 'returned' ? 'Returned medical record' : status === 'archived' ? 'Archived medical record' : 'Updated medical record status'
     recordAudit(actor, action, id, status === 'returned' ? 'Pending Review' : 'Success')
@@ -546,11 +639,23 @@ export const useClinicalStore = defineStore('clinical', () => {
     patientsLoading,
     patientsError,
     patientsWarning,
+    loadConsultations,
+    consultationsLoading,
+    consultationsError,
     selectConsultation,
+    createDemoConsultation,
+    receiveDemoConsultationMessage,
+    markConsultationRead,
     addMessage,
+    addImageMessage,
+    saveConsultationSummary,
     startConsultation,
     completeConsultation,
     createAiRecord,
+    createConsultationRecord,
+    loadConsultationRecords,
+    consultationRecordsLoading,
+    consultationRecordsError,
     createAssistantRecord,
     saveRecord,
     addOrder,
