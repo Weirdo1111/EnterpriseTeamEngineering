@@ -37,12 +37,10 @@ mysql -u YOUR_ADMIN -p doctor_platform_demo < backend/database/auth-initial.sql
 **已有数据库升级**仍使用原来的迁移，不导入初始化快照：
 
 ```bash
-mysql -u YOUR_ADMIN -p doctor_platform -e 'SHOW CREATE TABLE users\G'
-mysql -u YOUR_ADMIN -p doctor_platform < backend/migrations/001-login-codes.sql
-mysql -u YOUR_ADMIN -p doctor_platform < backend/migrations/005-auth-tencent-face.sql
+npm run migrate --prefix backend
 ```
 
-实际 `users.id` 为有符号 BIGINT。迁移验证该类型，按需补充可空联系方式并建立认证表，不重置账号。仓库的 `001_core_schema.sql` 使用无符号 BIGINT，属于另一套业务建表方案，不能直接与此认证初始化组合执行；本轮按约定没有修改它及相关业务外键。
+当前本地 `users.id` 为有符号 BIGINT。自动迁移会读取并保留现有类型，新建业务表的用户外键随之匹配；按需补充联系方式和认证表，不重置账号。请使用下面的自动迁移命令，不要直接混合导入不同类型的原始 SQL。
 
 ## 启动后端
 
@@ -239,9 +237,23 @@ npm run build --prefix backend
 
 backend 自动化测试已按要求删除，不再提供 test:face、test:face:db 或 test:integration 命令。真人识别、邮箱投递与云服务异常仍需在配置完成后人工联调；不能以构建通过代替真实云端识别成功。
 
-### 合并后的数据库部署限制
+### 数据库自动迁移
 
-认证迁移 `001-login-codes.sql` 要求已有 `users.id` 为 BIGINT SIGNED，业务建表 `001_core_schema.sql` 的用户外键为 BIGINT UNSIGNED，两者不可直接混用。认证迁移含 MySQL 客户端的 DELIMITER 指令，现有 `npm run migrate` 的 mysql2 执行器不能直接解析；其文件排序还会先执行认证迁移。因此不要直接对现有数据库运行全部迁移。部署前需由团队统一用户 ID 类型、确认迁移顺序及执行方式，备份后再实施。本次代码合并不执行或重写数据库迁移。
+先备份现有数据库，然后在项目根目录执行：
+
+```bash
+npm run migrate --prefix backend
+npm run build --prefix backend
+npm run dev
+```
+
+迁移读取 `backend/.env` 的 MySQL 配置，数据库需事先存在。执行顺序为 core → login-codes → knowledge-base → provenance → ingestion-jobs → tencent-face。执行器支持当前 SQL 文件使用的 DELIMITER 块；每条语句的结束符需单独位于该语句最后一行末尾。
+
+保留现有 `users.id` 类型（BIGINT 或 BIGINT UNSIGNED），新建表引用用户的字段自动匹配该类型；不会修改现有用户 ID、密码、联系方式、角色或 PersonId。已有外键字段类型不匹配时在执行迁移前报错，不自动重写有数据的表。全新数据库沿用 core SQL 的 BIGINT UNSIGNED。
+
+以 `schema_migrations` 记录成功执行的文件，同一数据库使用命名锁避免并行执行。重复运行会跳过已记录文件；当前迁移也支持原先手动执行、没有迁移记录的正常表结构。来源字段逐列检查后添加，避免重复列错误。MySQL DDL 会隐式提交，失败不会承诺整体回滚；排除错误后可重试，重大异常应从事前备份恢复。应使用上述自动入口，不要绕过它直接将有符号认证 SQL 与无符号业务 SQL 混合导入。
+
+本地数据库备份存放在 `backend/database/backups/`，已加入 Git 忽略规则。迁移只准备数据库结构；RAG 服务启用后仍需真实 AI 配置，文档和向量数据需要另行导入。
 
 ## Medical record API
 
@@ -283,6 +295,25 @@ VITE_API_BASE_URL=http://127.0.0.1:3000
 Without this variable, the frontend intentionally uses local demo adapters.
 
 Run `npm run build` to check backend compilation. Backend automated test scripts have been removed.
+
+## 未配置 AI 时的启动模式
+
+`backend/.env` 可设置 `AI_MODE`，默认 `auto`：
+
+- `auto`：`AI_API_KEY`、`AI_CHAT_MODEL`、`AI_EMBEDDING_MODEL` 缺少、为空或仍为 `replace_`／`YOUR_` 开头的占位符时，停用 `/api/ai` 和 `/api/rag`，后端仍正常启动。三项配置完整后恢复原有模块；这不保证云端密钥有效。
+- `disabled`：无论是否配置密钥，始终关闭上述两个模块。
+- `enabled`：强制启用；缺少必要配置时启动报错，方便完整部署发现配置问题。
+
+仅演示登录和病历时可使用：
+
+```dotenv
+AI_MODE=auto
+AI_API_KEY=
+```
+
+停用时密码、邮箱、人脸认证、病历和角色权限逻辑不变，不初始化 AI 客户端，不发送 AI 云请求。`/api/ai` 和 `/api/rag` 下所有接口（含知识文档列表）统一停用：未登录返回 401，已登录返回 HTTP 503 和 `{ "code": "AI_DISABLED", "message": "AI and knowledge services are not enabled." }`。停用提示只记录一次且不包含密钥。
+
+该模式不跳过数据库迁移／表结构检查，也不影响腾讯云人脸的独立配置。RAG 导入及评估命令仍要求其自身 AI 配置。修改 `.env` 后停止服务，在根目录重新运行 `npm run dev`。
 
 ## RAG knowledge base
 

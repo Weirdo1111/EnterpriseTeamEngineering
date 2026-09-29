@@ -17,3 +17,6 @@ reports/preview-*/
 Thumbs.db
 .idea/
 .vscode/
+
+# Private database backups (contain account data).
+backend/database/backups/

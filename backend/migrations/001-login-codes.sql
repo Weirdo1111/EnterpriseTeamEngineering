@@ -1,12 +1,12 @@
--- MySQL 8.0+. Inspected users.id: BIGINT (SIGNED), email: VARCHAR(100) NULL.
+-- MySQL 8.0+. Use npm run migrate: the runner matches user_id to the actual users.id type.
 -- Run once in the selected application database. No user data is rewritten.
 -- Guard the FK type before applying any DDL; fail safely on a different schema.
 DROP PROCEDURE IF EXISTS migrate_login_codes;
 DELIMITER //
 CREATE PROCEDURE migrate_login_codes()
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='users' AND column_name='id' AND column_type='bigint') THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Expected users.id BIGINT SIGNED; inspect SHOW CREATE TABLE users before migration';
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='users' AND column_name='id' AND column_type IN ('bigint', 'bigint unsigned')) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Expected users.id BIGINT or BIGINT UNSIGNED; inspect SHOW CREATE TABLE users';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='users' AND column_name='email') THEN
     ALTER TABLE users ADD COLUMN email VARCHAR(100) NULL;

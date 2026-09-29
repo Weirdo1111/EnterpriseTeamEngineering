@@ -9,7 +9,7 @@ import { createTencentFaceVerifier } from './auth/tencent-face.js'
 import { createFaceAuth } from './auth/face.js'
 import { createFaceLimits } from './auth/face-limits.js'
 import { createDb } from './db.js'
-import { createAuthRouter } from './routes/auth.js'
+import { createAuthRouter, createAuthenticated } from './routes/auth.js'
 import { createRecordRepository } from './records/repository.js'
 import { createRecordService } from './records/service.js'
 import { createRecordsRouter } from './routes/records.js'
@@ -28,6 +28,14 @@ async function main() {
   const sender = createCodeSender()
   const codeSecret = process.env.AUTH_CODE_SECRET
   if (!codeSecret || codeSecret.length < 32) throw new Error('AUTH_CODE_SECRET must contain at least 32 characters')
+  const aiMode = process.env.AI_MODE || 'auto'
+  if (!['auto', 'enabled', 'disabled'].includes(aiMode)) throw new Error('AI_MODE must be auto, enabled or disabled')
+  const aiConfigured = ['AI_API_KEY', 'AI_CHAT_MODEL', 'AI_EMBEDDING_MODEL'].every(key => {
+    const value = process.env[key]?.trim()
+    return Boolean(value && !value.startsWith('replace_') && !value.startsWith('YOUR_'))
+  })
+  if (aiMode === 'enabled' && !aiConfigured) throw new Error('AI_MODE=enabled requires AI_API_KEY, AI_CHAT_MODEL and AI_EMBEDDING_MODEL')
+  const aiEnabled = aiMode !== 'disabled' && aiConfigured
   const db = createDb()
   try {
     await db.check()
@@ -40,10 +48,17 @@ async function main() {
     app.use('/api/auth', createAuthRouter(db, secret, codes, faces))
     app.use(express.json({ limit: '16kb' }))
     app.use('/api/records', createRecordsRouter(db, secret, createRecordService(createRecordRepository(db.pool)), db.pool))
-    const knowledge = createKnowledgeRepository(db.pool)
-    const ark = createArkClient(arkConfig())
-    app.use('/api/ai', createAiRouter(db, secret, db.pool, { chunks: knowledge.readyChunks, embed: ark.embed }, loadMedicationCatalog(), ark.extractClinicalNarrative, loadDdiIndex()))
-    app.use('/api/rag', createRagRouter(db, secret, createRagService({ chunks: knowledge.readyChunks, embed: ark.embed, answer: ark.answer, retrievalStrategy: retrievalStrategy() }), knowledge, db.pool))
+    if (aiEnabled) {
+      const knowledge = createKnowledgeRepository(db.pool)
+      const ark = createArkClient(arkConfig())
+      app.use('/api/ai', createAiRouter(db, secret, db.pool, { chunks: knowledge.readyChunks, embed: ark.embed }, loadMedicationCatalog(), ark.extractClinicalNarrative, loadDdiIndex()))
+      app.use('/api/rag', createRagRouter(db, secret, createRagService({ chunks: knowledge.readyChunks, embed: ark.embed, answer: ark.answer, retrievalStrategy: retrievalStrategy() }), knowledge, db.pool))
+    } else {
+      app.use(['/api/ai', '/api/rag'], createAuthenticated(db, secret), (_req, res) => {
+        res.status(503).json({ code: 'AI_DISABLED', message: 'AI and knowledge services are not enabled.' })
+      })
+      console.info('AI and knowledge services disabled; authentication and medical records remain available.')
+    }
     const errors: ErrorRequestHandler = (_error, _req, res, _next) => {
       res.status(500).json({ message: 'Internal server error' })
     }
