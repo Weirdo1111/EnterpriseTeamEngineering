@@ -13,6 +13,7 @@ import { loadDdiIndex } from './ai/ddinter.js'
 import { arkConfig, createArkClient } from './rag/ark.js'
 import { createKnowledgeRepository } from './rag/repository.js'
 import { createRagService } from './rag/service.js'
+import { retrievalStrategy } from './rag/precision-retrieval.js'
 import { createRagRouter } from './routes/rag.js'
 
 async function main() {
@@ -31,7 +32,7 @@ async function main() {
     const knowledge = createKnowledgeRepository(db.pool)
     const ark = createArkClient(arkConfig())
     app.use('/api/ai', createAiRouter(db, secret, db.pool, { chunks: knowledge.readyChunks, embed: ark.embed }, loadMedicationCatalog(), ark.extractClinicalNarrative, loadDdiIndex()))
-    app.use('/api/rag', createRagRouter(db, secret, createRagService({ chunks: knowledge.readyChunks, embed: ark.embed, answer: ark.answer }), knowledge, db.pool))
+    app.use('/api/rag', createRagRouter(db, secret, createRagService({ chunks: knowledge.readyChunks, embed: ark.embed, answer: ark.answer, retrievalStrategy: retrievalStrategy() }), knowledge, db.pool))
     const errors: ErrorRequestHandler = (_error, _req, res, _next) => {
       res.status(500).json({ message: 'Internal server error' })
     }

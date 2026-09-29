@@ -1,5 +1,6 @@
 import { cosineSimilarity } from '../rag/service.js'
 import type { StoredKnowledgeChunk } from '../rag/repository.js'
+import { searchTerms } from '../rag/precision-retrieval.js'
 
 export type SimilarCase = {
   documentId: string
@@ -41,11 +42,11 @@ export function rankSimilarCases(chunks: StoredKnowledgeChunk[], embedding: numb
 }
 
 export function relatedGuidance(chunks: StoredKnowledgeChunk[], query: string, embedding: number[], limit = 2): RelatedGuidance[] {
-  const terms = (query.toLowerCase().match(/[a-z]{4,}/g) ?? []).filter(term => !['older', 'patient', 'history', 'record', 'condition', 'diagnosis', 'years'].includes(term))
+  const terms = searchTerms(query).filter(term => (term.length >= 4 || (term.length >= 2 && /\p{Script=Han}/u.test(term))) && !['older', 'patient', 'history', 'record', 'condition', 'diagnosis', 'years'].includes(term))
   if (!terms.length) return []
   const matches = chunks.filter(chunk => {
     if (chunk.category !== 'geriatric-clinical-guidance') return false
-    const content = `${chunk.title} ${chunk.heading || ''} ${chunk.content}`.toLowerCase()
+    const content = `${chunk.title} ${chunk.heading || ''} ${chunk.content}`.normalize('NFKC').toLowerCase()
     return terms.some(term => content.includes(term))
   }).map(chunk => ({ chunk, score: cosineSimilarity(chunk.embedding, embedding) }))
   const unique = new Map<string, RelatedGuidance>()

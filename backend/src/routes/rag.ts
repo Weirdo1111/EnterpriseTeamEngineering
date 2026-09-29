@@ -26,7 +26,7 @@ export function createRagRouter(users: UserLookup, secret: string, service: RagS
       const result = await service.ask({ question, scope: scope as RagQuery['scope'], documentId })
       await pool.execute(
         'INSERT INTO audit_logs (user_id, user_name, role, action, resource_type, resource_id, result, ip_address, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [user.id, user.name, user.role, 'Queried RAG knowledge base', 'knowledge_base', documentId || result.scope, 'Pending Review', req.ip || null, JSON.stringify({ traceId: result.traceId, questionLength: question.length, scope: result.scope, answerDecision: result.answerDecision, citationSourceIds: result.citations.map(citation => citation.sourceId), sourceIds: result.sources.map(source => source.id) })],
+        [user.id, user.name, user.role, 'Queried RAG knowledge base', 'knowledge_base', documentId || result.scope, 'Pending Review', req.ip || null, JSON.stringify({ traceId: result.traceId, questionLength: question.length, scope: result.scope, retrievalStrategy: result.retrievalStrategy, answerDecision: result.answerDecision, citationSourceIds: result.citations.map(citation => citation.sourceId), sourceIds: result.sources.map(source => source.id) })],
       )
       res.json(result)
     } catch (error) {

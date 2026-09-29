@@ -6,6 +6,7 @@ import { OfficeConverter, type OfficeChunk } from 'officeparser'
 import { createDb } from '../db.js'
 import { arkConfig, createArkClient } from './ark.js'
 import { parseFhirBundle, type ParsedKnowledgeChunk } from './fhir.js'
+import { clinicalPageChunks } from './clinical-pages.js'
 import { createKnowledgeRepository, type KnowledgeChunkInput, type KnowledgeDocumentInput } from './repository.js'
 
 type DatasetSource = {
@@ -18,6 +19,7 @@ type DatasetSource = {
   licenseUrl: string
   synthetic: boolean
   localPath: string
+  chunking?: 'clinical-pages-v1'
 }
 
 const paths = process.argv.slice(2)
@@ -60,7 +62,7 @@ function splitLongChunks(chunks: ParsedKnowledgeChunk[], maximum = 1400) {
   })
 }
 
-async function parseDocument(path: string, extension: string, bytes: Buffer) {
+async function parseDocument(path: string, extension: string, bytes: Buffer, source?: DatasetSource) {
   if (extension === 'json') {
     const parsed = parseFhirBundle(bytes.toString('utf8'))
     return { title: parsed.title, chunks: splitLongChunks(parsed.chunks) }
@@ -70,6 +72,9 @@ async function parseDocument(path: string, extension: string, bytes: Buffer) {
     generatorConfig: { chunksConfig: { strategy: 'document-structure', splitBy: extension === 'pptx' ? 'slide' : 'page', maxChunkSize: 1400 } },
   })
   const parsed = result.value as OfficeChunk[]
+  if (extension === 'pdf' && source?.chunking === 'clinical-pages-v1') {
+    return { title: source.title, chunks: clinicalPageChunks(parsed) }
+  }
   return {
     title: basename(path).replace(/\.[^.]+$/, '').replace(/\s*\(\d+\)$/, ''),
     chunks: parsed.filter(chunk => chunk.text.trim().length >= 30).map(chunk => ({
@@ -89,9 +94,9 @@ try {
     const id = `KD-${hash.slice(0, 32)}`
     const source = sourceFor(path, filename)
     console.log(`Parsing ${filename}...`)
-    const parsed = await parseDocument(path, extension, bytes)
+    const parsed = await parseDocument(path, extension, bytes, source)
     if (!parsed.chunks.length) throw new Error('No searchable text was extracted from the document.')
-    const title = source?.id === 'cdc-steadi-pocket-guide' ? source.title : parsed.title
+    const title = source && extension !== 'json' ? source.title : parsed.title
     const document: KnowledgeDocumentInput = { id, title, filename, sourceType: extension === 'json' ? 'fhir-r4' : extension, hash, ...metadata(source) }
     const job = await repository.prepareIngestion(document, parsed.chunks.length)
     if (job.status === 'ready') {

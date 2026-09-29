@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { StoredKnowledgeChunk } from './repository.js'
 import { ArkApiError } from './ark.js'
+import { rankPrecisionSources, type RankedSource, type RetrievalStrategy } from './precision-retrieval.js'
 
 export type RagScope = 'project' | 'clinical-guideline' | 'synthetic-patient'
 export type RagQuery = { question: string; scope?: RagScope; documentId?: string }
@@ -19,6 +20,7 @@ export type RagSource = {
   heading?: string
   excerpt: string
   score: number
+  rerankScore?: number
 }
 
 export type RagResult = {
@@ -32,6 +34,7 @@ export type RagResult = {
   evidenceStatus: 'sufficient' | 'insufficient'
   clinicianReviewRequired: boolean
   citations: { index: number; sourceId: string }[]
+  retrievalStrategy: RetrievalStrategy
 }
 
 export function cosineSimilarity(left: number[], right: number[]) {
@@ -96,8 +99,8 @@ export function filterChunksForScope(chunks: StoredKnowledgeChunk[], scope: RagS
 
 const unsafeClinicalRequest = (question: string) => /\b(?:diagnose|prescribe|prescription|dosage|what dose|exact dose|what is (?:the )?diagnosis|give (?:a )?diagnosis)\b|诊断|开药|处方|剂量/i.test(question)
 
-function metadata() {
-  return { traceId: randomUUID(), generatedAt: new Date().toISOString() }
+function metadata(retrievalStrategy: RetrievalStrategy) {
+  return { traceId: randomUUID(), generatedAt: new Date().toISOString(), retrievalStrategy }
 }
 
 function citationsFor(answer: string, sources: RagSource[]) {
@@ -113,9 +116,9 @@ function evidenceAnswer(sources: RagSource[]) {
   return sources.slice(0, 3).map((source, index) => `[${index + 1}] ${source.excerpt}`).join('\n\n')
 }
 
-function abstained(scope: RagScope, answer: string, sources: RagSource[] = []): RagResult {
+function abstained(scope: RagScope, answer: string, sources: RagSource[], strategy: RetrievalStrategy): RagResult {
   return {
-    ...metadata(),
+    ...metadata(strategy),
     answer, sources, scope, generationMode: 'not-run', answerDecision: 'abstained', evidenceStatus: 'insufficient',
     clinicianReviewRequired: scope !== 'project', citations: [],
   }
@@ -126,7 +129,9 @@ export function createRagService(dependencies: {
   embed: (text: string) => Promise<number[]>
   answer: (question: string, context: string, options?: { scope: RagScope; syntheticPatient: boolean }) => Promise<string>
   minimumScore?: number
+  retrievalStrategy?: RetrievalStrategy
 }) {
+  const strategy = dependencies.retrievalStrategy ?? 'source-group'
   return {
     async ask(query: string | RagQuery): Promise<RagResult> {
       const input = typeof query === 'string' ? { question: query } : query
@@ -138,17 +143,21 @@ export function createRagService(dependencies: {
       const chunks = filterChunksForScope(await dependencies.chunks(), scope, input.documentId)
       if (!chunks.length) throw new Error('The knowledge base is empty. Import documents before asking questions.')
       if (scope !== 'project' && unsafeClinicalRequest(clean)) {
-        return abstained(scope, 'This assistant cannot diagnose, prescribe, or provide medication doses. Review the patient and applicable clinical guidance directly with a qualified clinician.')
+        return abstained(scope, 'This assistant cannot diagnose, prescribe, or provide medication doses. Review the patient and applicable clinical guidance directly with a qualified clinician.', [], strategy)
       }
-      const ranked = rankSourceGroups(chunks, await dependencies.embed(clean), 8, clean)
-      const sources: RagSource[] = ranked.map(({ chunk, score }, index) => ({
+      const embedding = await dependencies.embed(clean)
+      const ranked: RankedSource[] = strategy === 'precision'
+        ? rankPrecisionSources(rankSourceGroups(chunks, embedding, chunks.length, clean), clean, { minimumScore: dependencies.minimumScore })
+        : rankSourceGroups(chunks, embedding, 8, clean)
+      const sources: RagSource[] = ranked.map(({ chunk, score, rerankScore }) => ({
         id: chunk.id, documentId: chunk.documentId, title: chunk.title, filename: chunk.filename,
         sourceUrl: chunk.sourceUrl, publisher: chunk.publisher, licenseName: chunk.licenseName, synthetic: Boolean(chunk.synthetic),
         category: chunk.category, location: chunk.location, heading: chunk.heading, excerpt: chunk.content.slice(0, 500),
         score: Number(score.toFixed(4)),
+        ...(rerankScore === undefined ? {} : { rerankScore: Number(rerankScore.toFixed(4)) }),
       }))
       if (!ranked.length || ranked[0]!.score < (dependencies.minimumScore ?? 0.15)) {
-        return abstained(scope, 'The available evidence is insufficient to answer this question reliably.', sources)
+        return abstained(scope, 'The available evidence is insufficient to answer this question reliably.', sources, strategy)
       }
       const context = ranked.map(({ chunk }, index) => `[${index + 1}] ${chunk.title}${chunk.location ? `, ${chunk.location}` : ''}${chunk.heading ? `, ${chunk.heading}` : ''}\n${chunk.content}`).join('\n\n')
       try {
@@ -156,20 +165,20 @@ export function createRagService(dependencies: {
         const citationResult = citationsFor(answer, sources)
         if (!citationResult.citations.length || citationResult.invalid) {
           return {
-            ...metadata(),
+            ...metadata(strategy),
             answer: `The generated response did not contain verifiable citations. Review the retrieved evidence directly:\n\n${evidenceAnswer(sources)}`,
             sources, citations: [], scope, generationMode: 'retrieval-only', answerDecision: 'retrieval-only',
             evidenceStatus: 'sufficient', clinicianReviewRequired: scope !== 'project',
           }
         }
         return {
-          ...metadata(), answer, sources, citations: citationResult.citations,
+          ...metadata(strategy), answer, sources, citations: citationResult.citations,
           scope, generationMode: 'generated', answerDecision: 'answered', evidenceStatus: 'sufficient', clinicianReviewRequired: scope !== 'project',
         }
       } catch (error) {
         if (!(error instanceof ArkApiError) || error.status !== 429) throw error
         return {
-          ...metadata(), answer: `The generation model is temporarily rate limited. The most relevant retrieved evidence is shown below and must be reviewed directly:\n\n${evidenceAnswer(sources)}`,
+          ...metadata(strategy), answer: `The generation model is temporarily rate limited. The most relevant retrieved evidence is shown below and must be reviewed directly:\n\n${evidenceAnswer(sources)}`,
           sources, citations: [], scope, generationMode: 'retrieval-only', answerDecision: 'retrieval-only', evidenceStatus: 'sufficient',
           clinicianReviewRequired: scope !== 'project',
         }

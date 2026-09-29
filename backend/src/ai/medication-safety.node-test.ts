@@ -61,6 +61,27 @@ test('azithromycin and metoprolol are not mistaken for penicillin allergy cleara
   }
 })
 
+test('metoprolol surfaces a sourced preliminary diabetes precaution without claiming clearance', () => {
+  const result = checkOrderSafety({
+    patient: { age: 72, allergyStatus: 'known', allergies: ['Penicillin'], diseaseTags: ['Hypertension', 'Diabetes'] },
+    order: { type: 'Medication', medication: { ingredient: 'Metoprolol' } },
+  })
+  assert.equal(result.findings[0]?.category, 'condition')
+  assert.equal(result.findings[0]?.severity, 'warning')
+  assert.match(result.findings[0]?.reference?.url || '', /^https:\/\//)
+  assert.ok(result.notChecked.some(item => item.includes('current medication list')))
+  assert.equal(result.findings.some(item => item.category === 'allergy'), false)
+})
+
+test('metoprolol also uses the recorded diagnosis when disease tags are absent', () => {
+  const result = checkOrderSafety({
+    patient: { diagnosis: 'Hypertension with Diabetes', diseaseTags: [], allergyStatus: 'known', allergies: ['Penicillin'] },
+    order: { type: 'Medication', medication: { ingredient: 'Metoprolol' } },
+  })
+  assert.equal(result.findings[0]?.category, 'condition')
+  assert.equal(result.status, 'potential-match')
+})
+
 test('DDInter screens confirmed medicines while preserving coverage gaps', () => {
   const ddi = createDdiIndex({ schemaVersion: 1, source: { name: 'DDInter 2.0' }, drugs: [
     { id: 'D1', name: 'Metoprolol', rxnormName: 'metoprolol' },

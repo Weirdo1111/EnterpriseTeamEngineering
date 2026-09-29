@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { datasetPath, selectDatasetSources } from './dataset-selection.js'
 
 const backendDirectory = fileURLToPath(new URL('../', import.meta.url))
 const catalog = JSON.parse(await readFile(join(backendDirectory, 'data/dataset-catalog.json'), 'utf8'))
@@ -14,6 +15,7 @@ async function download(url, destination) {
   const response = await fetch(url, { signal: AbortSignal.timeout(120_000) })
   if (!response.ok) throw new Error(`Download failed (${response.status}): ${url}`)
   const bytes = Buffer.from(await response.arrayBuffer())
+  if (destination.endsWith('.pdf') && !bytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new Error(`Not a PDF: ${url}`)
   await writeFile(destination, bytes)
   return { bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }
 }
@@ -32,12 +34,15 @@ function patientAge(bundle) {
   return age
 }
 
-const receipt = { fetchedAt: new Date().toISOString(), sources: [] }
-for (const source of catalog.sources) {
-  if (source.id === 'cdc-steadi-pocket-guide') {
-    const destination = join(outputDirectory, source.localPath)
+let previous = { sources: [] }
+try { previous = JSON.parse(await readFile(join(outputDirectory, 'fetch-receipt.json'), 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error }
+const selectedSources = selectDatasetSources(catalog, process.argv.slice(2))
+const receipt = { fetchedAt: new Date().toISOString(), sources: previous.sources.filter(source => !selectedSources.some(selected => selected.id === source.id)) }
+for (const source of selectedSources) {
+  if (source.localPath.endsWith('.pdf')) {
+    const destination = datasetPath(outputDirectory, source.localPath)
     const result = await download(source.downloadUrl, destination)
-    receipt.sources.push({ id: source.id, files: 1, ...result })
+    receipt.sources.push({ id: source.id, files: 1, sourceUrl: source.sourceUrl, downloadUrl: source.downloadUrl, version: source.version, licenseName: source.licenseName, ...result })
     console.log(`Downloaded ${source.title}`)
     continue
   }
@@ -45,12 +50,12 @@ for (const source of catalog.sources) {
   if (source.id === 'synthea-older-adults') {
     const archive = join(downloadDirectory, basename(new URL(source.downloadUrl).pathname))
     const result = await download(source.downloadUrl, archive)
-    const extracted = join(downloadDirectory, 'synthea-fhir')
+    const extracted = datasetPath(downloadDirectory, 'synthea-fhir')
     await rm(extracted, { recursive: true, force: true })
     await mkdir(extracted, { recursive: true })
     execFileSync('tar', ['-xf', archive, '-C', extracted], { stdio: 'inherit' })
 
-    const selectedDirectory = join(outputDirectory, source.localPath)
+    const selectedDirectory = datasetPath(outputDirectory, source.localPath)
     await rm(selectedDirectory, { recursive: true, force: true })
     await mkdir(selectedDirectory, { recursive: true })
     const candidates = (await readdir(extracted, { recursive: true, withFileTypes: true }))

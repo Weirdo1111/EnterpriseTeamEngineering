@@ -239,7 +239,6 @@ onMounted(async () => {
             <div v-if="summary.evidence?.length" class="source-excerpts"><h3>Source Excerpts</h3><p v-for="(item, index) in summary.evidence" :key="index"><b>{{ item.sourceId }}</b> {{ item.quote }}</p></div>
           </div>
           <div v-else-if="cases" class="case-list">
-            <p class="case-notice">These records are synthetic examples. Similarity is a search score, not a clinical outcome comparison.</p>
             <article v-for="item in cases.cases" :key="item.documentId"><div><strong>{{ item.title }}</strong><el-tag size="small" effect="plain">Synthetic · similarity {{ item.score.toFixed(2) }}</el-tag></div><p>{{ item.excerpt }}</p><small>{{ item.location || 'Record passage' }}</small></article>
             <p v-if="!cases.cases.length" class="empty-note">No synthetic cases were available for matching.</p>
             <div class="guidance-list"><h3>Related Guidance</h3><article v-for="item in cases.guidance" :key="item.documentId"><strong>{{ item.title }}</strong><p>{{ item.excerpt }}</p><a v-if="item.sourceUrl" :href="item.sourceUrl" target="_blank" rel="noopener noreferrer">Open source</a></article><p v-if="!cases.guidance.length" class="empty-note">No relevant approved guidance was found for these features.</p></div>

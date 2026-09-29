@@ -138,8 +138,9 @@ export function createKnowledgeRepository(pool: Pool) {
       const connection = await pool.getConnection()
       try {
         await connection.beginTransaction()
-        const [counts] = await connection.execute<(RowDataPacket & { count: number })[]>('SELECT COUNT(*) count FROM knowledge_ingestion_job_chunks WHERE job_id=?', [jobId])
-        const chunkCount = counts[0]?.count ?? 0
+        const [counts] = await connection.execute<(RowDataPacket & { count: number | string })[]>('SELECT COUNT(*) count FROM knowledge_ingestion_job_chunks WHERE job_id=?', [jobId])
+        const chunkCount = Number(counts[0]?.count ?? 0)
+        if (!Number.isSafeInteger(chunkCount) || chunkCount < 0) throw new Error('Invalid ingestion checkpoint count.')
         const [jobs] = await connection.execute<IngestionJobRow[]>('SELECT total_chunks FROM knowledge_ingestion_jobs WHERE id=? FOR UPDATE', [jobId])
         if (!jobs[0] || chunkCount !== jobs[0].total_chunks) throw new Error(`Ingestion checkpoint is incomplete (${chunkCount}/${jobs[0]?.total_chunks ?? 0}).`)
         await connection.execute('DELETE FROM knowledge_documents WHERE filename=? AND id<>?', [document.filename, document.id])

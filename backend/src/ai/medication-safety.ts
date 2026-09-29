@@ -14,11 +14,15 @@ export type MedicationEntry = {
   doseRules?: DoseRule[]
 }
 export type MedicationCatalog = { formatVersion: 1; jurisdiction: 'CN'; version: string; medications: MedicationEntry[] }
-export type SafetyFinding = { category: 'allergy' | 'cross-allergy' | 'interaction' | 'dose'; severity: 'warning' | 'critical'; message: string; evidence?: Evidence; reference?: { title: string; url: string } }
+export type SafetyFinding = { category: 'allergy' | 'cross-allergy' | 'interaction' | 'dose' | 'condition'; severity: 'warning' | 'critical'; message: string; evidence?: Evidence; reference?: { title: string; url: string } }
 
 const preliminarySource = {
   title: 'Xinjiang Drug Administration: amoxicillin and penicillin allergy',
   url: 'https://mpa.xinjiang.gov.cn/xjyjj/yyaq/202310/39284ff54a27437bbca06a4ab42ecaa1.shtml',
+}
+const metoprololSource = {
+  title: 'DailyMed: metoprolol tartrate, diabetes and hypoglycemia warning',
+  url: 'https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0ccb9d3c-3f9a-486d-9b27-dc6f3ef6f4ed',
 }
 const knownIngredients = [
   { name: 'Penicillin', family: 'penicillin', aliases: ['Penicillin', '青霉素'] },
@@ -110,20 +114,26 @@ export function checkOrderSafety(input: Record<string, unknown>, catalog: Medica
     if (exactAllergy) findings.push({ category: 'allergy', severity: 'critical', message: `Documented allergy matches ${resolved?.name || ingredient}. Hold the order and verify the reaction and exact product before prescribing.` })
     const preliminaryCrossAllergy = patient.allergyStatus === 'known' && resolved?.name === 'Amoxicillin' && allergies.some(allergen => resolveKnownIngredient(allergen)?.name === 'Penicillin')
     if (preliminaryCrossAllergy) findings.push({ category: 'cross-allergy', severity: 'critical', message: 'Amoxicillin is a penicillin-class drug and the patient has a documented penicillin allergy. Hold the order and verify the reaction history; serious hypersensitivity may occur.', reference: preliminarySource })
+    const diabetesLabels = ['diabetes', 'type 2 diabetes', 'diabetes mellitus', 'type 2 diabetes mellitus', 'hypertension with diabetes']
+    const hasDocumentedDiabetes = diabetesLabels.includes(normalized(str(patient.diagnosis, 500))) ||
+      (Array.isArray(patient.diseaseTags) && patient.diseaseTags.some(tag => typeof tag === 'string' && diabetesLabels.includes(normalized(tag))))
+    if (resolved?.name === 'Metoprolol' && hasDocumentedDiabetes) {
+      findings.push({ category: 'condition', severity: 'warning', message: 'Recorded diabetes: metoprolol may mask an early sign of hypoglycemia (fast heartbeat). Review glucose-lowering treatment and monitoring; the exact product and patient context still require verification.', reference: metoprololSource })
+      checked.push('Recorded diabetes flag compared with a preliminary metoprolol label warning')
+    }
     if (resolved && (patient.allergyStatus === 'known' || patient.allergyStatus === 'none')) checked.push('Known ingredient and documented allergy names compared (preliminary name/class rule)')
     else if (ingredient && (patient.allergyStatus === 'known' || patient.allergyStatus === 'none')) notChecked.push('Drug identity is not resolved; exact allergy comparison is limited to literal text')
     else notChecked.push('Exact allergy: confirm the ingredient and allergy history')
     if (preliminaryCrossAllergy) checked.push('Amoxicillin versus documented penicillin allergy (preliminary source-backed warning)')
     notChecked.push('Complete cross-allergy coverage requires a locally reviewed product-specific rule catalog')
-    if (!catalog) notChecked.push('No reviewed Mainland China medication knowledge catalog is configured')
-    else if (!candidate) notChecked.push('Drug identity is not matched to a reviewed ingredient and approval number')
+    if (catalog && !candidate) notChecked.push('Drug identity is not matched to a reviewed ingredient and approval number')
 
     if (candidate && patient.allergyStatus === 'known' && candidate.crossAllergies?.length) {
       for (const rule of candidate.crossAllergies || []) if (allergies.some(allergen => normalized(allergen) === normalized(rule.allergenIngredient))) {
         findings.push({ category: 'cross-allergy', severity: rule.severity, message: rule.message, evidence: rule.evidence })
       }
       checked.push('Reviewed cross-allergy rules for documented allergen names')
-    } else if (!preliminaryCrossAllergy) notChecked.push('Cross-allergy: verified drug identity, allergy list, and reviewed rules required')
+    }
 
     if (candidate && patient.medicationListConfirmed === true) {
       const knownCurrent = current.map(name => catalog!.medications.filter(drug => [drug.ingredient, ...(drug.aliases || [])].some(alias => normalized(alias) === normalized(name))))

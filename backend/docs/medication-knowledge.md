@@ -12,6 +12,8 @@ To demonstrate a known interaction, select a physician account, enter `Metoprolo
 
 The preliminary warning recognizes `Penicillin`/`青霉素` and `Amoxicillin`/`阿莫西林`, including a single trailing dose and route such as `Amoxicillin 0.5g oral`. It is based on the [Xinjiang Drug Administration public safety notice](https://mpa.xinjiang.gov.cn/xjyjj/yyaq/202310/39284ff54a27437bbca06a4ab42ecaa1.shtml), not a product-specific approved label or a locally pharmacist-reviewed rule. It is a stop-and-verify alert, not a comprehensive cross-allergy classifier. The parser also recognizes `Azithromycin`/`阿奇霉素` and `Metoprolol`/`美托洛尔` as distinct ingredients, but does not assert that either is low risk. Unknown names and combination products remain unresolved. The dedicated route, dose, frequency, current-medicine, and eGFR fields still need verified values; text entered into the ingredient field does not prove those values.
 
+For a patient whose structured disease tags include diabetes, metoprolol also produces a preliminary condition warning based on a [DailyMed product label](https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=0ccb9d3c-3f9a-486d-9b27-dc6f3ef6f4ed): beta blockers may mask an early sign of hypoglycemia. This is a sourced educational prompt, not a verified Mainland China product rule, a diagnosis, or a reason to declare the proposed order unsafe or safe without clinician review.
+
 ## Review pipeline
 
 ```text

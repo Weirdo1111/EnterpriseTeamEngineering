@@ -38,6 +38,7 @@ test('returns generated text with traceable sources', async () => {
   assert.equal(result.answer, 'Based on [1]')
   assert.equal(result.sources[0]?.location, 'Page 3')
   assert.equal(result.generationMode, 'generated')
+  assert.equal(result.retrievalStrategy, 'source-group')
   assert.equal(result.citations[0]?.sourceId, result.sources[0]?.id)
   assert.ok(result.traceId)
 })
@@ -108,4 +109,29 @@ test('allows factual synthetic summaries that explicitly avoid diagnosis', async
   const result = await service.ask({ question: 'Summarize the record without making a diagnosis', scope: 'synthetic-patient', documentId: 'patient-doc' })
   assert.equal(result.answerDecision, 'answered')
   assert.equal(generated, true)
+})
+
+test('precision strategy keeps scope isolation and uses one query embedding', async () => {
+  let embeddings = 0
+  const scoped = [
+    { ...chunks[0]!, id: 'project', documentId: 'project', category: 'project-documents', content: 'Medication monitoring' },
+    { ...chunks[0]!, id: 'target', documentId: 'target', category: 'synthetic-patient-records', synthetic: true, content: 'Recorded medications' },
+    { ...chunks[0]!, id: 'other', documentId: 'other', category: 'synthetic-patient-records', synthetic: true, content: 'Recorded medications' },
+  ]
+  const service = createRagService({ chunks: async () => scoped, embed: async () => { embeddings += 1; return [1, 0] }, answer: async () => 'Recorded facts [1]', retrievalStrategy: 'precision' })
+  const result = await service.ask({ question: 'Recorded medications', scope: 'synthetic-patient', documentId: 'target' })
+  assert.equal(result.retrievalStrategy, 'precision')
+  assert.equal(result.sources.length, 1)
+  assert.equal(result.sources[0]!.documentId, 'target')
+  assert.equal(embeddings, 1)
+})
+
+test('precision strategy abstains instead of invoking the model for below-floor sources', async () => {
+  let generated = false
+  const service = createRagService({ chunks: async () => [chunks[0]!], embed: async () => [0, 1], answer: async () => { generated = true; return '[1]' }, retrievalStrategy: 'precision', minimumScore: 0.5 })
+  const result = await service.ask('JWT authentication')
+  assert.equal(result.answerDecision, 'abstained')
+  assert.equal(result.retrievalStrategy, 'precision')
+  assert.equal(result.sources.length, 0)
+  assert.equal(generated, false)
 })

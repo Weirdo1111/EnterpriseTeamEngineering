@@ -32,7 +32,7 @@ export interface ConsultationSummary {
 export interface OrderSafetyCheck {
   status: 'potential-match' | 'incomplete'
   alerts: string[]
-  findings: { category: 'allergy' | 'cross-allergy' | 'interaction' | 'dose'; severity: 'warning' | 'critical'; message: string; evidence?: { title: string; url: string; version: string; reviewedBy: string; reviewedAt: string }; reference?: { title: string; url: string } }[]
+  findings: { category: 'allergy' | 'cross-allergy' | 'interaction' | 'dose' | 'condition'; severity: 'warning' | 'critical'; message: string; evidence?: { title: string; url: string; version: string; reviewedBy: string; reviewedAt: string }; reference?: { title: string; url: string } }[]
   documentedAllergies: string[]
   checked: string[]
   notChecked: string[]

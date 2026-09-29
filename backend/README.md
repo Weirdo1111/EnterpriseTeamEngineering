@@ -124,7 +124,7 @@ Queries are isolated by an explicit retrieval scope. Omitting `scope` remains ba
 
 ### Curated open datasets
 
-The repository includes a reviewable source catalog at `data/dataset-catalog.json`. Fetch the allowlisted CDC STEADI public-domain guide and eight Synthea synthetic records for adults aged 65 or older:
+The repository includes a reviewable source catalog at `data/dataset-catalog.json`. It contains CDC STEADI, eight Synthea synthetic records, three Chinese NHC guidance documents, and two WHO guidelines. These are coursework references with mixed rights, not a uniformly open-licensed or commercially cleared medical database. See `docs/clinical-guidance-sources.md` before reuse.
 
 ```bash
 npm run datasets:fetch
@@ -132,6 +132,17 @@ npm run migrate
 npm run build
 npm run datasets:ingest
 ```
+
+Select clinical PDFs without re-downloading or importing patient samples:
+
+```bash
+npm run datasets:fetch -- --clinical
+npm run datasets:ingest -- --clinical
+# Select one document; repeat --source= for more than one.
+npm run datasets:ingest -- --source=nhc-diabetes-diet-2023
+```
+
+The five new PDFs use page-preserving chunks (`clinical-pages-v1`) to retain short headings and bullets without one embedding request per PDF text block. Sparse text extraction is rejected; scanned guidelines require a text edition or validated OCR. Existing CDC/project benchmark documents retain their original chunks. Guidelines remain isolated from project PPTs and synthetic patients. New documents become available to existing similar-case guidance retrieval after ingestion, but this does not add a question-answering page or attach guideline facts to a patient's record.
 
 Downloaded files are gitignored; the fetch receipt records checksums locally. The FHIR importer excludes names, addresses, contact details, identifiers, and exact birth dates before embedding. It stores publisher, source URL, license, category, and synthetic-data status alongside each document. `AI_EMBED_DELAY_MS` defaults to 1200 ms to reduce embedding RPM pressure and can be tuned for the provider quota.
 
@@ -143,5 +154,7 @@ npm run eval:rag -- --generate
 ```
 
 The benchmark definitions and interpretation notes are in `docs/rag-evaluation.md`. It compares the original fragment ranking with source-page aggregation using identical query embeddings and human-authored relevance labels.
+
+The evaluator also compares an experimental local full-text reranker and adaptive evidence selector (`retrievalPrecisionCandidate`). It reports fixed-cutoff precision/recall at 1, 3, 5, and 8, sparse-label ceilings, actual-returned precision, mean result counts, and empty-result rates without altering the original labels. Keep the default `RAG_RETRIEVAL_STRATEGY=source-group` until complete-corpus evaluation and manual recall review support rollout. To opt into the candidate afterward, set `RAG_RETRIEVAL_STRATEGY=precision` in the backend environment and restart. Responses and audit logs identify the active strategy. See `docs/rag-evaluation.md` for validation limits.
 
 See `docs/production-readiness.md` for implemented safety controls, data-source decisions, and the release-blocking work that remains before any commercial or clinical deployment.
