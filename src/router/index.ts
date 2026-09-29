@@ -80,6 +80,10 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
+  if (to.name === 'login' && to.query.signout === '1') {
+    void authStore.logout()
+    return { name: 'login', replace: true }
+  }
   if (authStore.token) {
     try {
       await authStore.restoreSession()

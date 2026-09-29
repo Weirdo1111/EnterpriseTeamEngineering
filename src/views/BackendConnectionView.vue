@@ -12,7 +12,7 @@ async function verifyAgain() {
   if (checking.value) return
   checking.value = true
   message.value = ''
-  try { await auth.restoreSession(true); message.value = 'Your account is still verified.' }
+  try { await auth.restoreSession(); if (!auth.isAuthenticated) { await router.replace('/login'); return };  message.value = 'Your account is still verified.' }
   catch { await router.replace('/login') }
   finally { checking.value = false }
 }

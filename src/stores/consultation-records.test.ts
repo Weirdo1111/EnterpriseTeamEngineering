@@ -174,6 +174,8 @@ describe('consultation medical record store integration', () => {
   it('routes local source-record edits locally and regular record edits through the medical record service', async () => {
     const { store, session } = await savedSource()
     const local = await store.createConsultationRecord(session.id, actor)
+    vi.spyOn(medicalRecordService, 'list').mockResolvedValue(structuredClone(recordsSeed))
+    await store.loadRecords(true)
     const regular = store.records.find(item => !item.sourceConsultationId)!
     const update = vi.spyOn(medicalRecordService, 'updateClinicalFields').mockResolvedValue({ ...structuredClone(recordsSeed[0]!), ...fields, version: 2 })
     await store.saveRecord(local.id, fields, actor)

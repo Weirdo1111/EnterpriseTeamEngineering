@@ -92,8 +92,13 @@ export const useAuthStore = defineStore('auth', () => {
   async function restoreSession() {
     if (!token.value) return
     const version = sessionVersion
-    const result = await authApi.me()
-    if (version === sessionVersion) applyUser(result.user)
+    try {
+      const result = await authApi.me()
+      if (version === sessionVersion) applyUser(result.user)
+    } catch (error) {
+      if (version === sessionVersion) clearSession()
+      throw error
+    }
   }
 
   async function logout() {

@@ -1,11 +1,15 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useClinicalStore } from './clinical'
 
 const actor = { name: 'Dr. Test', role: 'Physician', department: 'Medicine' }
 
 describe('group case review', () => {
-  beforeEach(() => setActivePinia(createPinia()))
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', { getItem: () => null, removeItem: () => {} })
+    setActivePinia(createPinia())
+  })
+  afterEach(() => vi.unstubAllGlobals())
 
   it('keeps physician collaboration separate from patient visit messages', () => {
     const store = useClinicalStore()
