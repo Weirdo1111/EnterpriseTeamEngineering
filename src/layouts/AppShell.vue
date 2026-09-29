@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -21,6 +21,7 @@ import {
 } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
 import { useClinicalStore } from '@/stores/clinical'
+import { resolvePatientIdentity } from '@/utils/patient-identity'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,6 +30,14 @@ const clinicalStore = useClinicalStore()
 const mobileOpen = shallowRef(false)
 const searchQuery = shallowRef('')
 const searchFocused = shallowRef(false)
+const isConsultationPage = computed(() => route.name === 'consultation')
+
+watch(isConsultationPage, active => {
+  if (active) {
+    searchQuery.value = ''
+    searchFocused.value = false
+  }
+})
 
 const navGroups = [
   {
@@ -68,12 +77,12 @@ const searchResults = computed(() => {
       path: { path: '/patients', query: { patient: patient.id } },
     }))
   const recordResults = clinicalStore.records
-    .filter((record) => `${record.patientName}${record.id}${record.chiefComplaint}`.toLowerCase().includes(keyword))
+    .filter((record) => `${resolvePatientIdentity(clinicalStore.patients, record).currentName ?? ''} ${record.patientName} ${record.patientId} ${record.id} ${record.chiefComplaint}`.toLowerCase().includes(keyword))
     .slice(0, 4)
     .map((record) => ({
       key: record.id,
       type: 'Medical Record',
-      label: `${record.patientName} · ${record.id}`,
+      label: `${resolvePatientIdentity(clinicalStore.patients, record).currentName ?? `${record.patientName} (snapshot)`} · ${record.id}`,
       detail: record.chiefComplaint,
       path: { path: '/records', query: { record: record.id } },
     }))
@@ -107,12 +116,13 @@ function closeSearchResults() {
 }
 
 function showNotifications() {
-  ElMessage.info('You have 2 consultation messages and 1 remote consultation task.')
+  const unread = clinicalStore.consultations.reduce((count, session) => count + session.unread, 0)
+  ElMessage.info(`You have ${unread} unread consultation message(s), ${clinicalStore.waitingConsultations.length} waiting consultation(s), and ${clinicalStore.pendingRemoteConsultations.length} remote consultation task(s).`)
 }
 
 function logout() {
-  authStore.logout()
-  router.push({ name: 'login' })
+  // Sign out only after the current page's unsaved-changes guard allows navigation.
+  void router.push({ name: 'login', query: { signout: '1' } })
 }
 </script>
 
@@ -158,7 +168,10 @@ function logout() {
       <header class="topbar">
         <button class="menu-button" type="button" aria-label="Open navigation" @click="mobileOpen = true"><Menu :size="21" /></button>
 
-        <div class="global-search" @focusin="searchFocused = true" @focusout="closeSearchResults">
+        <nav v-if="isConsultationPage" class="section-location" aria-label="Current location">
+          <ol><li aria-current="page">Online Consultation</li></ol>
+        </nav>
+        <div v-else class="global-search" @focusin="searchFocused = true" @focusout="closeSearchResults">
           <Search :size="17" />
           <input v-model="searchQuery" type="search" placeholder="Search patients, IDs, or records" aria-label="Global search" />
           <div v-if="searchFocused && searchQuery" class="search-results">
@@ -172,7 +185,7 @@ function logout() {
 
         <div class="top-actions">
           <span class="today">{{ todayLabel }}</span>
-          <button class="icon-button" type="button" aria-label="View notifications" @click="showNotifications"><Bell :size="18" /><i /></button>
+          <button class="icon-button" type="button" aria-label="View notifications" @click="showNotifications"><Bell :size="18" /><i v-if="clinicalStore.consultations.some(session => session.unread) || clinicalStore.waitingConsultations.length || clinicalStore.pendingRemoteConsultations.length" /></button>
           <div class="user-chip">
             <span class="avatar">{{ authStore.profile.name.slice(0, 1) }}</span>
             <div class="user-copy">
@@ -311,6 +324,10 @@ function logout() {
 }
 
 .global-search:focus-within { border-color: var(--primary); }
+.section-location { display: flex; align-items: center; min-width: 0; min-height: 38px; }
+.section-location ol { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.section-location li { white-space: nowrap; }
+.section-location [aria-current] { color: var(--text-strong); font-weight: 600; }
 .global-search input { min-width: 0; width: 100%; border: 0; outline: 0; color: var(--text); background: transparent; }
 
 .search-results {
@@ -386,6 +403,8 @@ function logout() {
   .menu-button { display: flex; flex: 0 0 36px; }
   .topbar { gap: 8px; padding: 9px 12px; }
   .global-search { width: auto; flex: 1; }
+  .section-location { flex: 1; }
+  .section-location ol { font-size: 12px; }
   .today, .user-copy, .top-actions .el-button { display: none; }
   .user-chip { padding-left: 4px; border-left: 0; }
   .content { padding: 16px 12px 24px; }

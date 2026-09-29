@@ -6,6 +6,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useClinicalStore } from '@/stores/clinical'
 import { useAuthStore } from '@/stores/auth'
+import { formatConsultationTime } from '@/utils/consultations'
 
 const router = useRouter()
 const clinicalStore = useClinicalStore()
@@ -31,11 +32,11 @@ const tasks = computed(() => [
   { id: 'T-04', time: '16:00', title: "Reassess Xiulan Chen's postoperative rehabilitation plan", meta: 'Health management · Periodic assessment', tone: 'info', path: '/health-management?patient=P-202609-002' },
 ])
 
-const activeSessions = computed(() => clinicalStore.consultations.filter((item) => item.status !== 'completed'))
+const activeSessions = computed(() => clinicalStore.consultations.filter(item => item.status !== 'completed').map(session => ({ ...session, patientName: clinicalStore.patients.find(patient => patient.id === session.patientId)?.name ?? session.patientName })))
 
 function openSession(id: string) {
   clinicalStore.selectConsultation(id)
-  router.push('/consultation')
+  router.push({ path: '/consultation', query: { session: id } })
 }
 
 function openPatient(id: string) {
@@ -80,13 +81,15 @@ function openPatient(id: string) {
           <div><h2 class="panel-title">Consultation Queue</h2><p class="panel-subtitle">Active sessions and consultations waiting to be accepted</p></div>
           <MessageSquareText :size="18" class="header-icon" />
         </div>
-        <div class="queue-list">
+        <el-alert v-if="clinicalStore.consultationsError" title="Local consultation history could not be loaded. Open Consultations to retry." type="error" :closable="false" show-icon />
+        <div v-else class="queue-list">
+          <p v-if="!activeSessions.length" class="empty-text">No active consultations. Open Consultation Records in Online Consultation and select Completed to revisit past conversations.</p>
           <button v-for="session in activeSessions" :key="session.id" type="button" @click="openSession(session.id)">
             <span class="patient-avatar">{{ session.patientName.slice(-1) }}</span>
             <div><strong>{{ session.patientName }}</strong><small>{{ session.complaint }}</small></div>
             <div class="queue-state">
               <el-tag :type="session.status === 'active' ? 'primary' : 'warning'" size="small" effect="plain">{{ session.status === 'active' ? 'In Progress' : 'Waiting' }}</el-tag>
-              <small>{{ session.updatedAt }}</small>
+              <small>{{ formatConsultationTime(session.updatedAt) }}</small>
             </div>
           </button>
         </div>

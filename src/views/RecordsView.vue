@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { allergyText } from '@/utils/patients'
-import { computed, reactive, shallowRef, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onBeforeUnmount, reactive, shallowRef, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Archive, Download, Edit3, Plus, Save, Send, Sparkles } from '@lucide/vue'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -9,9 +9,12 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useClinicalStore } from '@/stores/clinical'
 import { downloadText } from '@/utils/export'
+import { formatConsultationTime } from '@/utils/consultations'
+import { resolvePatientIdentity } from '@/utils/patient-identity'
 import type { MedicalOrder, MedicalRecord } from '@/types/clinical'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const clinicalStore = useClinicalStore()
 const requestedRecord = typeof route.query.record === 'string' ? route.query.record : ''
@@ -23,20 +26,67 @@ const editableRecord = reactive({ chiefComplaint: '', presentIllness: '', diagno
 const orderForm = reactive<{ type: MedicalOrder['type']; content: string }>({ type: 'Medication', content: '' })
 
 const selectedRecord = computed(() => clinicalStore.records.find((record) => record.id === selectedRecordId.value) ?? clinicalStore.records[0]!)
+const missingRequestedRecord = computed(() => typeof route.query.record === 'string' && !clinicalStore.records.some(record => record.id === route.query.record))
+const recordIdentity = computed(() => resolvePatientIdentity(clinicalStore.patients, selectedRecord.value))
+const profileUnavailable = computed(() => recordIdentity.value.profileMissing || Boolean(clinicalStore.patientsError))
+function recordPatientName(record: MedicalRecord) {
+  const identity = resolvePatientIdentity(clinicalStore.patientsError ? [] : clinicalStore.patients, record)
+  return identity.currentName ?? `${identity.snapshotName} (snapshot)`
+}
 const actor = computed(() => ({ name: authStore.profile.name, role: authStore.roleLabel, department: authStore.profile.department }))
-const canEdit = computed(() => authStore.currentRole !== 'admin' && selectedRecord.value.status !== 'archived')
-const canReview = computed(() => authStore.currentRole === 'seniorDoctor')
+const canEdit = computed(() => authStore.currentRole !== 'admin' && !missingRequestedRecord.value && !profileUnavailable.value && !clinicalStore.consultationRecordsError
+  && (selectedRecord.value.sourceConsultationId ? ['draft', 'returned'].includes(selectedRecord.value.status) : selectedRecord.value.status !== 'archived'))
+const canReview = computed(() => authStore.currentRole === 'seniorDoctor' && !missingRequestedRecord.value && !profileUnavailable.value)
+const saveError = shallowRef('')
+const sourceSession = computed(() => clinicalStore.consultations.find(session => session.id === selectedRecord.value.sourceConsultationId))
+const sourceChanged = computed(() => sourceSession.value?.summary && sourceSession.value.summary.updatedAt !== selectedRecord.value.sourceSummaryUpdatedAt)
+const recordDirty = computed(() => Boolean(selectedRecord.value.sourceConsultationId) && canEdit.value
+  && (Object.entries(editableRecord).some(([key, value]) => value !== selectedRecord.value[key as keyof typeof editableRecord]) || orderDialogVisible.value))
+
+function runRecordAction(action: () => void, success: string) {
+  saveError.value = ''
+  try { action(); ElMessage.success(success); return true }
+  catch (error) { saveError.value = error instanceof Error ? error.message : 'Unable to save this record. Your input has been kept.'; return false }
+}
+
+async function confirmLeaveRecord() {
+  if (!recordDirty.value) return true
+  try {
+    await ElMessageBox.confirm('Your unsaved medical record changes will be discarded. Saved content will remain.', 'Leave with unsaved record changes?', { confirmButtonText: 'Leave and discard', cancelButtonText: 'Keep editing', type: 'warning' })
+    return true
+  } catch { return false }
+}
+onBeforeRouteLeave(confirmLeaveRecord)
+function warnBeforeUnload(event: BeforeUnloadEvent) {
+  if (!recordDirty.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+window.addEventListener('beforeunload', warnBeforeUnload)
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnload))
+
+async function reloadRecords() {
+  try {
+    await clinicalStore.loadConsultationRecords(true)
+    const requested = clinicalStore.records.find(record => record.id === route.query.record)
+    if (requested) { selectedRecordId.value = requested.id; syncRecord(requested) }
+  } catch { /* Error remains visible without discarding the original storage. */ }
+}
 
 function syncRecord(record: MedicalRecord) {
   editableRecord.chiefComplaint = record.chiefComplaint
   editableRecord.presentIllness = record.presentIllness
   editableRecord.diagnosis = record.diagnosis
-  reviewNote.value = record.reviewNote ?? 'The record is complete, with clear rationale for the diagnosis and orders.'
+  reviewNote.value = record.reviewNote ?? (record.sourceConsultationId ? '' : 'The record is complete, with clear rationale for the diagnosis and orders.')
+  saveError.value = ''
 }
 
-function selectRecord(record: MedicalRecord) {
+async function selectRecord(record: MedicalRecord) {
+  if (record.id === selectedRecord.value.id) { void router.replace({ query: { ...route.query, record: record.id } }); return }
+  if (!(await confirmLeaveRecord())) return
   selectedRecordId.value = record.id
   syncRecord(record)
+  void router.replace({ query: { ...route.query, record: record.id } })
 }
 
 watch(() => route.query.record, (value) => {
@@ -48,15 +98,15 @@ watch(() => route.query.record, (value) => {
 
 function saveRecord(submit = false) {
   if (!canEdit.value) return
-  clinicalStore.saveRecord(selectedRecord.value.id, { ...editableRecord }, actor.value, submit)
-  ElMessage.success(submit ? 'Medical record submitted for senior review.' : 'Medical record draft saved.')
+  runRecordAction(() => clinicalStore.saveRecord(selectedRecord.value.id, { ...editableRecord }, actor.value, submit), submit ? 'Medical record submitted for senior review.' : 'Medical record draft saved in this browser.')
 }
 
 function generateRecord() {
   if (!canEdit.value) return
-  const record = clinicalStore.createAiRecord(actor.value)
-  selectRecord(record)
-  ElMessage.success('AI draft generated. Review each item.')
+  runRecordAction(() => {
+    const record = clinicalStore.createAiRecord(actor.value, selectedRecord.value.patientId)
+    void selectRecord(record)
+  }, 'Demo AI draft generated for the selected patient. Review each item.')
 }
 
 function openOrderDialog(order?: MedicalOrder) {
@@ -71,17 +121,17 @@ function submitOrder() {
     ElMessage.warning('Enter the order details.')
     return
   }
-  if (editingOrderId.value) clinicalStore.updateOrder(selectedRecord.value.id, editingOrderId.value, orderForm.content.trim(), actor.value)
-  else clinicalStore.addOrder(selectedRecord.value.id, { type: orderForm.type, content: orderForm.content.trim() }, actor.value)
-  orderDialogVisible.value = false
-  ElMessage.success(editingOrderId.value ? 'Order updated.' : 'Order added.')
+  const saved = runRecordAction(() => {
+    if (editingOrderId.value) clinicalStore.updateOrder(selectedRecord.value.id, editingOrderId.value, orderForm.content.trim(), actor.value)
+    else clinicalStore.addOrder(selectedRecord.value.id, { type: orderForm.type, content: orderForm.content.trim() }, actor.value)
+  }, editingOrderId.value ? 'Order updated.' : 'Order added.')
+  if (saved) orderDialogVisible.value = false
 }
 
 async function stopOrder(order: MedicalOrder) {
   try {
     await ElMessageBox.confirm('The order will remain in the medical record after it is stopped. Continue?', 'Stop Order', { confirmButtonText: 'Stop Order', cancelButtonText: 'Cancel', type: 'warning' })
-    clinicalStore.stopOrder(selectedRecord.value.id, order.id, actor.value)
-    ElMessage.success('Order stopped.')
+    runRecordAction(() => clinicalStore.stopOrder(selectedRecord.value.id, order.id, actor.value), 'Order stopped.')
   } catch {
     // Keep the current order status when the user cancels.
   }
@@ -92,37 +142,41 @@ function review(status: 'approved' | 'returned') {
     ElMessage.warning('Enter a review note.')
     return
   }
-  clinicalStore.updateRecordStatus(selectedRecord.value.id, status, reviewNote.value.trim(), actor.value)
-  ElMessage.success(status === 'approved' ? 'Medical record approved.' : 'Medical record returned for revision.')
+  runRecordAction(() => clinicalStore.updateRecordStatus(selectedRecord.value.id, status, reviewNote.value.trim(), actor.value), status === 'approved' ? 'Medical record approved.' : 'Medical record returned for revision.')
 }
 
 function archiveRecord() {
-  clinicalStore.updateRecordStatus(selectedRecord.value.id, 'archived', reviewNote.value || 'Review completed and archived.', actor.value)
-  ElMessage.success('Medical record archived.')
+  runRecordAction(() => clinicalStore.updateRecordStatus(selectedRecord.value.id, 'archived', reviewNote.value || 'Review completed and archived.', actor.value), 'Medical record archived.')
 }
 
 function exportRecord() {
+  if (missingRequestedRecord.value) return
   const record = selectedRecord.value
   const orders = record.orders.map((order) => `${order.type}: ${order.content} (${order.status === 'active' ? 'Active' : 'Stopped'})`).join('\n')
-  downloadText(`${record.patientName}-${record.id}-Medical-Record.txt`, `Medical Record ${record.id}\nPatient: ${record.patientName}\nPhysician: ${record.doctor}\nChief complaint: ${record.chiefComplaint}\nPresent illness: ${record.presentIllness}\nDiagnosis: ${record.diagnosis}\n\nOrders\n${orders}\n\nReview note: ${record.reviewNote ?? 'None'}`)
+  downloadText(`${record.patientName}-${record.id}-Medical-Record.txt`, `Medical Record ${record.id}\nPatient ID: ${record.patientId}\nCurrent patient name: ${profileUnavailable.value ? 'Profile unavailable' : recordIdentity.value.currentName}\nPatient name recorded in this document (snapshot): ${record.patientName}\nPhysician: ${record.doctor}\nChief complaint: ${record.chiefComplaint}\nPresent illness: ${record.presentIllness}\nDiagnosis: ${record.diagnosis}\n\nOrders\n${orders}\n\nReview note: ${record.reviewNote ?? 'None'}`)
   ElMessage.success('Medical record exported.')
 }
 
 syncRecord(selectedRecord.value)
 function recordAllergyText(patientId: string) {
   const patient = clinicalStore.patients.find(item => item.id === patientId)
-  return patient ? allergyText(patient) : 'Unconfirmed'
+  return patient && !clinicalStore.patientsError ? allergyText(patient) : 'Profile unavailable; current allergy status cannot be verified'
 }
 </script>
 
 <template>
   <div class="view-stack">
-    <PageHeader title="Medical Records" description="Document care with structured templates; all order and review changes are retained">
-      <el-button :icon="Sparkles" :disabled="!canEdit" @click="generateRecord">Generate AI Draft</el-button>
-      <el-button :icon="Download" @click="exportRecord">Export Record</el-button>
+    <PageHeader title="Medical Records" description="Review and complete structured medical records">
+      <el-button v-if="!selectedRecord.sourceConsultationId" :icon="Sparkles" :disabled="!canEdit" @click="generateRecord">Generate AI Draft</el-button>
+      <el-button :icon="Download" :disabled="missingRequestedRecord" @click="exportRecord">Export Record</el-button>
       <el-button :icon="Save" :disabled="!canEdit" @click="saveRecord(false)">Save Draft</el-button>
       <el-button :icon="Send" type="primary" :disabled="!canEdit" @click="saveRecord(true)">Submit for Review</el-button>
     </PageHeader>
+    <el-alert v-if="clinicalStore.consultationRecordsError" title="Consultation records could not be loaded" type="error" :closable="false"><p>{{ clinicalStore.consultationRecordsError }}</p><el-button :loading="clinicalStore.consultationRecordsLoading" @click="reloadRecords">Retry loading records</el-button></el-alert>
+    <el-alert v-if="saveError" title="Record changes were not saved" type="error" :closable="false"><p>{{ saveError }} Your form input is kept for retry.</p></el-alert>
+    <el-alert v-if="missingRequestedRecord" title="Medical record not found" type="warning" :closable="false"><p>The requested record ID does not exist. Choose a record from the queue.</p></el-alert>
+    <section v-else class="source-note patient-identity"><strong>Patient ID: {{ recordIdentity.patientId }}</strong><p>Current patient profile: {{ profileUnavailable ? 'Profile unavailable' : recordIdentity.currentName }}</p><p>Name recorded in this document (snapshot): {{ recordIdentity.snapshotName }}</p><p v-if="profileUnavailable">Saved content remains readable. Current patient details are unavailable, so clinical changes are disabled.</p><el-button v-else size="small" @click="router.push({ path: '/patients', query: { patient: recordIdentity.patientId } })">Open Patient Profile</el-button></section>
+    <section v-if="!missingRequestedRecord && selectedRecord.sourceConsultationId" class="source-note"><strong>From saved consultation summary</strong><p>Copied from session {{ selectedRecord.sourceConsultationId }}. This record is saved in this browser. Review the copied content before submission; no orders are generated.</p><p v-if="sourceChanged">The consultation summary has changed since this draft was created. Review the source and update this record manually; your edits have been kept.</p><el-button size="small" @click="router.push({ path: '/consultation', query: { session: selectedRecord.sourceConsultationId } })">View Source Consultation</el-button></section>
 
     <p v-if="authStore.currentRole === 'admin'" class="permission-note">You are viewing as an administrator. Administrators can audit records but cannot edit clinical content.</p>
 
@@ -132,25 +186,25 @@ function recordAllergyText(patientId: string) {
         <div class="record-list">
           <button v-for="record in clinicalStore.records" :key="record.id" type="button" :class="{ active: record.id === selectedRecord.id }" @click="selectRecord(record)">
             <div><span>{{ record.id }}</span><StatusBadge :status="record.status" type="record" /></div>
-            <strong>{{ record.patientName }}</strong>
+            <strong>{{ recordPatientName(record) }}</strong>
             <p>{{ record.chiefComplaint }}</p>
-            <small>{{ record.updatedAt }}</small>
+            <small>{{ formatConsultationTime(record.updatedAt) }}</small>
           </button>
         </div>
       </article>
 
-      <article class="panel workspace-panel">
+      <article v-if="!missingRequestedRecord" class="panel workspace-panel">
         <div class="panel-header">
-          <div><h2 class="panel-title">{{ selectedRecord.patientName }} · Structured Medical Record</h2><p class="panel-subtitle">{{ selectedRecord.doctor }} · {{ selectedRecord.updatedAt }}</p></div>
+          <div><h2 class="panel-title">{{ recordPatientName(selectedRecord) }} · Structured Medical Record</h2><p class="panel-subtitle">{{ selectedRecord.doctor }} · {{ formatConsultationTime(selectedRecord.updatedAt) }}</p></div>
           <StatusBadge :status="selectedRecord.status" type="record" />
         </div>
 
         <div class="emr-layout">
           <div class="emr-main">
             <el-form label-position="top" class="emr-form">
-              <el-form-item label="Chief Complaint"><el-input v-model="editableRecord.chiefComplaint" :disabled="!canEdit" /></el-form-item>
-              <el-form-item label="Present Illness"><el-input v-model="editableRecord.presentIllness" type="textarea" :rows="5" resize="none" :disabled="!canEdit" /></el-form-item>
-              <el-form-item label="Preliminary Diagnosis"><el-input v-model="editableRecord.diagnosis" :disabled="!canEdit" /></el-form-item>
+              <el-form-item label="Chief Complaint"><el-input v-model="editableRecord.chiefComplaint" aria-label="Chief Complaint" :maxlength="1000" :disabled="!canEdit" /></el-form-item>
+              <el-form-item label="Present Illness"><el-input v-model="editableRecord.presentIllness" aria-label="Present Illness" :maxlength="12000" type="textarea" :rows="5" resize="none" :disabled="!canEdit" /></el-form-item>
+              <el-form-item label="Preliminary Diagnosis"><el-input v-model="editableRecord.diagnosis" aria-label="Preliminary Diagnosis" :maxlength="3000" :disabled="!canEdit" /></el-form-item>
             </el-form>
 
             <section class="orders-section">
@@ -184,14 +238,16 @@ function recordAllergyText(patientId: string) {
       </article>
     </section>
 
-    <el-dialog v-model="orderDialogVisible" :title="editingOrderId ? 'Edit Order' : 'Add Order'" width="520px">
-      <el-form label-position="top"><el-form-item label="Order Type"><el-select v-model="orderForm.type"><el-option v-for="type in ['Medication', 'Examination', 'Laboratory', 'Nursing']" :key="type" :label="type" :value="type" /></el-select></el-form-item><el-form-item label="Order Details"><el-input v-model="orderForm.content" type="textarea" :rows="4" /></el-form-item></el-form>
+    <el-dialog v-model="orderDialogVisible" append-to-body :title="editingOrderId ? 'Edit Order' : 'Add Order'" width="min(520px, 95vw)">
+      <el-form label-position="top"><el-form-item label="Order Type"><el-select v-model="orderForm.type" :disabled="Boolean(editingOrderId)"><el-option v-for="type in ['Medication', 'Examination', 'Laboratory', 'Nursing']" :key="type" :label="type" :value="type" /></el-select></el-form-item><el-form-item label="Order Details"><el-input v-model="orderForm.content" type="textarea" :rows="4" /></el-form-item></el-form>
       <template #footer><el-button @click="orderDialogVisible = false">Cancel</el-button><el-button type="primary" @click="submitOrder">Save Order</el-button></template>
     </el-dialog>
   </div>
 </template>
 
 <style scoped>
+.source-note { padding: 14px; border: 1px solid var(--border); border-radius: 4px; background: #eff6f8; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.source-note p { margin: 5px 0 10px; color: var(--muted); }
 .permission-note { margin: 0; padding: 10px 13px; border: 1px solid #d6c28f; border-radius: var(--radius); color: #75551c; background: #fffaf0; font-size: 12px; }
 .records-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
 .record-list-panel { position: sticky; top: 80px; }
@@ -201,6 +257,8 @@ function recordAllergyText(patientId: string) {
 .record-list > button:hover { background: var(--panel-soft); }
 .record-list > button.active { background: #eef5f7; box-shadow: inset 3px 0 0 var(--primary); }
 .record-list > button > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.record-list > button > div > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.record-list > button > div > :last-child { flex-shrink: 0; }
 .record-list span, .record-list p, .record-list small { color: var(--muted); }
 .record-list span { font-size: 10px; }
 .record-list strong { color: var(--text-strong); font-size: 14px; }
