@@ -208,14 +208,14 @@ describe('consultation binding to the shared patient service', () => {
 
   it('rejects explicit and default invalid AI draft patient IDs instead of using the first patient', async () => {
     const store = useClinicalStore()
-    expect(() => store.createAiRecord(actor, store.patients[0]!.id)).toThrow('Load patient information')
+    await expect(store.createAiRecord(actor, store.patients[0]!.id)).rejects.toThrow('Load patient information')
     await store.loadPatients()
     const before = state(store)
-    expect(() => store.createAiRecord(actor, 'missing-profile')).toThrow('Patient not found')
+    await expect(store.createAiRecord(actor, 'missing-profile')).rejects.toThrow('Patient not found')
     store.selectedPatientId = 'missing-profile'
-    expect(() => store.createAiRecord(actor)).toThrow('Patient not found')
+    await expect(store.createAiRecord(actor)).rejects.toThrow('Patient not found')
     expect(state(store)).toBe(before)
     store.patientsError = 'Read failed'
-    expect(() => store.createAiRecord(actor, store.patients[0]!.id)).toThrow('Load patient information')
+    await expect(store.createAiRecord(actor, store.patients[0]!.id)).rejects.toThrow('Load patient information')
   })
 })

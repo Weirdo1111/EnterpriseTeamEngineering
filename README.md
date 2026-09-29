@@ -14,11 +14,11 @@ A Vue 3, TypeScript, and Element Plus doctor workspace prototype with a compact 
 - AI assistant: record drafts, consultation summaries, similar records, and order risk checks
 - Role-scoped audit logs: personal, department, or platform-wide visibility
 
-Clinical data and services are local demonstrations. The app does not connect to real patient systems, SMS providers, facial recognition, or medical AI services. Password authentication can be configured against the team's confirmed backend contract; server accounts are isolated from local clinical data until patient and consultation server adapters are ready.
+Patient profiles, patient messaging, images and consultation-derived records are local demonstrations. Configuring the backend enables real password authentication, the general medical-record service and AI/RAG endpoints. It does not turn local consultation data into server records or connect a patient device. SMS and facial verification remain simulations available only in local demo mode.
 
 ## Authentication and patient binding integration
 
-Leave `VITE_API_BASE_URL` empty for the existing local demo. To verify a real password account, copy `.env.example` to `.env.local`, configure the authentication server root URL, and restart Vite. Login uses `POST /api/auth/login` followed by `GET /api/auth/me`. API sessions use a separate storage key bound to that server; demo tokens, local role selection, SMS and facial simulations cannot authorize server mode. Server identities enter `/connection`, since this checkout has no patient/consultation HTTP adapters. Logout clears the local identity immediately; the current backend does not revoke issued JWTs.
+Leave `VITE_API_BASE_URL` empty for the existing local demo. To verify a real password account, copy `.env.example` to `.env.local`, configure the authentication server root URL, and restart Vite. Login uses `POST /api/auth/login` followed by `GET /api/auth/me`. API sessions use a separate storage key bound to that server; demo tokens, local role selection, SMS and facial simulations cannot authorize server mode. Verified server identities can enter the workspace and use the configured medical-record and AI services. `/connection` remains an optional connection-status page. Patient and consultation adapters remain explicitly local demonstrations; their saved records are not automatically uploaded. Logout clears the local identity immediately; the current backend does not revoke issued JWTs.
 
 New consultations and medical record handoffs validate exact opaque patient IDs through the existing shared patient service. Current identity displays use that profile; historical names are labelled snapshots. Missing profiles do not fall back to another patient. See [接口对接结果与待联调](docs/接口对接结果与待联调.md) for implementation, configuration, acceptance steps and remaining backend decisions.
 
@@ -85,13 +85,29 @@ The consultation page saves messages, image metadata, clinician summaries, and a
 - **Demo Tools** creates fictional waiting requests and patient text/image replies for local acceptance. Forms retain input after failure and use stable request/message IDs for retries. Completed sessions reject replies. No message is delivered to another device or person.
 - The consultation queue filters by patient name/ID, session ID or complaint and Waiting/In Progress status. Unread counts are saved only after explicit selection/Read latest (or successful accept/reply); refreshing alone does not mark a message read. The notification bell reflects actual local counts.
 - Unsent text/image drafts, summary edits and demo forms stay separate per conversation while this page remains open. Leaving through navigation or sign-out asks before discarding drafts. Browser refresh/close uses the browser's native unsaved-change prompt.
-- **Create Record Draft / Open Linked Record** copies the saved manual consultation summary into one linked medical record per conversation. Existing edits are preserved when it is reopened or the source summary changes. No diagnosis or orders are inferred. These linked records persist in `doctor-platform-consultation-records-v1`, including subsequent saved edits, orders, review and archive states. Source records are editable only in Draft/Returned; review/archive require the senior physician role. Other existing sample/AI-generated medical records retain their previous in-memory lifecycle.
+- **Create Record Draft / Open Linked Record** copies the saved manual consultation summary into one linked medical record per conversation. Existing edits are preserved when it is reopened or the source summary changes. No diagnosis or orders are inferred. These linked records persist in `doctor-platform-consultation-records-v1`, including subsequent saved edits, orders, review and archive states. Source records are editable only in Draft/Returned; review/archive require the senior physician role. General medical records use the separate `medicalRecordService`: local persistence in demo mode and authenticated HTTP calls when the backend is configured. Consultation-derived records remain local in both modes and are clearly marked with their source.
 
 This is a shared local demonstration for the browser's demo roles, not a server, patient messaging connection, or secure authorization system. Use fictional images for demonstration. Clearing this site's browser data removes saved conversations, images and linked records; other devices/browsers do not share them. Patient attachments labelled **Sample** are fictional references with no uploaded file. The patient context panel uses profile fields, not an AI analysis of the conversation. Audit entries remain an in-memory shared-module demonstration. Video consultation and recording are not implemented.
 
 Manual verification: [在线问诊验收清单](docs/在线问诊验收清单.md). Backend handoff: [consultation adapter contracts and boundaries](docs/consultation-integration.md).
 
 Service and store tests cover reloading history, atomic failed writes, completed-session protection, read-only roles, retry deduplication, and separation from patient storage. Run `npm test` and `npm run build` after changes.
+
+## Medical Records and Review Workflow
+
+The medical record module now uses an asynchronous service boundary rather than mutating Pinia state directly. The adapter in `src/services/records.ts` stores demo records under `doctor-platform-medical-records-v1`, or uses the authenticated backend when configured. Consultation-derived records use their own local adapter and are identified by `sourceConsultationId`.
+
+- Physicians and senior physicians can create drafts and edit only `draft` or `returned` records. Administrators are read-only.
+- General medical-record submission requires complete clinical fields and at least one active order. Local consultation-derived records require chief complaint, present illness and diagnosis; they never fabricate an order to meet submission requirements.
+- Only senior physicians can perform `pending -> approved/returned` and `approved -> archived` transitions.
+- Every write uses an expected version to detect stale concurrent edits.
+- Medical orders retain creation, update, and stop metadata instead of being deleted.
+- Reviews retain reviewer, decision, note, and timestamp history.
+- Storage writes are atomic from the UI perspective: failed persistence does not update Pinia state or append a success audit entry.
+
+`src/services/clinical-ai.ts` is a deterministic, traceable fallback adapter for draft generation. It produces structured fields, source IDs, and safety warnings without prescribing medication doses. Configured API mode uses the Express AI/RAG endpoints; the deterministic fallback remains available in local demo mode. AI output remains a draft and cannot bypass physician review.
+
+The production backend should enforce the same role permissions, state transitions, validation, optimistic locking, and audit events. Frontend checks are usability controls, not a security boundary.
 
 ## Technology Stack
 
@@ -103,6 +119,9 @@ Service and store tests cover reloading history, atomic failed writes, completed
 - Element Plus
 - ECharts
 - @lucide/vue
+- Express 5 + TypeScript
+- MySQL 8 or MariaDB 10.4+
+- JWT + Argon2id
 
 ## Local Development
 
@@ -116,6 +135,10 @@ Default URL:
 ```text
 http://127.0.0.1:5173/
 ```
+
+The frontend runs in local demo mode by default. For authenticated MySQL-backed records, configure `VITE_API_BASE_URL`, apply the migrations, and start the backend as documented in `backend/README.md`.
+
+The authenticated AI Assistant supports a MariaDB-backed RAG knowledge base with PPTX/PDF/DOCX ingestion, Ark embeddings, hybrid retrieval, source citations, audited queries, and a retrieval-only fallback when text generation is rate limited.
 
 ## Build
 

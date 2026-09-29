@@ -54,7 +54,7 @@ const router = createRouter({
           path: 'consultation',
           name: 'consultation',
           component: () => import('@/views/ConsultationView.vue'),
-          meta: { title: 'Online Consultation' },
+          meta: { title: 'Patient Online Visit' },
         },
         {
           path: 'records',
@@ -72,7 +72,7 @@ const router = createRouter({
           path: 'remote-consultations',
           name: 'remote-consultations',
           component: () => import('@/views/RemoteConsultationsView.vue'),
-          meta: { title: 'Remote Consultation' },
+          meta: { title: 'Physician Group Consultation' },
         },
         {
           path: 'health-management',
@@ -113,14 +113,7 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 
-  // This checkout has no patient/consultation server adapter. Never load local clinical
-  // fixtures into a verified server account or treat a local save as a server write.
-  if (authStore.usesBackend) {
-    clearClinicalCache()
-    if (authStore.isAuthenticated && to.name !== 'backend-connection') return { name: 'backend-connection' }
-    return
-  }
-  if (to.name === 'backend-connection') return { name: 'dashboard' }
+  if (to.name === 'backend-connection' && !authStore.usesBackend) return { name: 'dashboard' }
 
   if (isPublic && authStore.isAuthenticated && to.query.signout !== '1') {
     return { name: 'dashboard' }
@@ -128,7 +121,7 @@ router.beforeEach(async (to) => {
 
   if (authStore.isAuthenticated) {
     const clinical = loadedClinical ??= useClinicalStore()
-    await Promise.allSettled([clinical.loadPatients(), clinical.loadConsultations(), clinical.loadConsultationRecords()]) // Each page exposes load failures and retry.
+    await Promise.allSettled([clinical.loadPatients(), clinical.loadConsultations(), clinical.loadConsultationRecords(), clinical.loadRecords()]) // Each page exposes load failures and retry.
   }
 
   const roles = to.meta.roles as string[] | undefined

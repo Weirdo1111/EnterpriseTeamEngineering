@@ -79,7 +79,7 @@ async function submitLogin() {
     else authStore.login(selectedRole.value)
     const requested = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
     const destination = requested.startsWith('/') && !requested.startsWith('//') && !requested.startsWith('/login') ? requested : '/'
-    await router.replace(authStore.usesBackend ? '/connection' : destination)
+    await router.replace(destination)
   } catch (error) {
     loginError.value = error instanceof Error ? error.message : 'Unable to sign in. Please try again.'
   } finally { loading.value = false }
@@ -106,7 +106,7 @@ async function submitLogin() {
         <li><CheckCircle2 :size="17" /><span>AI-generated content requires physician confirmation before use</span></li>
       </ul>
 
-      <p class="intro-foot">{{ authStore.usesBackend ? 'Server account verification · Clinical data connection pending' : 'Training environment · All patient information shown is simulated' }}</p>
+      <p class="intro-foot">{{ authStore.usesBackend ? 'Server account verification · Patient consultations use local demonstration data' : 'Training environment · All patient information shown is simulated' }}</p>
     </section>
 
     <section class="login-area">

@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, reactive, ref, shallowReactive, shallowRef, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, FilePlus2, ImagePlus, Play, Search, SendHorizontal } from '@lucide/vue'
+import { Download, FilePlus2, ImagePlus, Play, Search, SendHorizontal, Sparkles } from '@lucide/vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PatientSummary from '@/components/patients/PatientSummary.vue'
 import ConsultationImageMessage from '@/components/consultations/ConsultationImageMessage.vue'
@@ -371,6 +371,12 @@ async function receiveDemoMessage(id: string, input: Parameters<ConsultationServ
   ElMessage.success('Demo patient message saved. Open the conversation to read it.')
 }
 
+function openAiAssistant() {
+  const session = selectedSession.value
+  if (!session || !canOperate.value || patientBindingBlocked.value || busy.value) return
+  void router.push({ path: '/ai-assistant', query: { task: 'emr', patient: session.patientId, session: session.id } })
+}
+
 function exportSession() {
   const session = selectedSession.value
   if (!session || loadBlocked.value) return
@@ -388,7 +394,7 @@ function exportSession() {
 
 <template>
   <div class="view-stack">
-    <PageHeader title="Online Consultation" description="Accept consultations, reply to patients, and revisit your local conversation history">
+    <PageHeader title="Online Consultation" description="Doctor–patient visits: accept requests, exchange messages, and prepare a clinical summary">
       <el-button :icon="Search" :disabled="busy || loadBlocked" @click="showRecords">Consultation Records ({{ clinicalStore.consultations.length }})</el-button>
       <el-button :icon="Download" :disabled="!selectedSession || loadBlocked || busy" @click="exportSession">Export Current Conversation</el-button>
       <ConsultationDemoPanel :patients="clinicalStore.patients" :session="patientBindingBlocked ? undefined : selectedSession" :disabled="!canOperate || busy || loadBlocked || clinicalStore.patientsLoading || Boolean(clinicalStore.patientsError)" :create-request="createDemoRequest" :receive-message="receiveDemoMessage" @dirty="demoDirty = $event" />
@@ -485,6 +491,7 @@ function exportSession() {
           </div>
         </article>
         <article class="panel record-handoff"><div class="panel-header"><h2 class="panel-title">Medical Record</h2></div><div class="panel-body"><p>Create a draft from the saved clinician summary. Review and complete it in Medical Records.</p><p v-if="!selectedSession.summary">Save a consultation summary first.</p><p v-if="linkedRecord">A linked record already exists. Opening it keeps your existing edits.</p><p v-if="clinicalStore.consultationRecordsError" class="image-error">{{ clinicalStore.consultationRecordsError }}</p><el-button :icon="FilePlus2" size="small" :disabled="!canOperate || busy || loadBlocked || clinicalStore.consultationRecordsLoading || !selectedSession.summary || (!linkedRecord && patientBindingBlocked)" @click="generateRecord">{{ linkedRecord ? 'Open Linked Record' : 'Create Record Draft' }}</el-button></div></article>
+      <article class="panel record-handoff"><div class="panel-header"><h2 class="panel-title">AI Assistant</h2></div><div class="panel-body"><p>Open the separate assistant workflow to review a generated draft for this patient. It does not replace your saved consultation summary or linked record.</p><el-button :icon="Sparkles" size="small" :disabled="!canOperate || busy || loadBlocked || patientBindingBlocked" @click="openAiAssistant">Open AI Assistant</el-button></div></article>
       </aside>
     </section>
 

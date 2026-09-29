@@ -6,6 +6,7 @@ import { patientStatusLabel, recordStatusLabel } from '@/utils/status'
 interface Props {
   status: PatientStatus | RecordStatus | AuditLog['result']
   type: 'patient' | 'record' | 'audit'
+  compact?: boolean
 }
 
 const props = defineProps<Props>()
@@ -22,10 +23,17 @@ const tone = computed(() => {
   if (['critical', 'returned', 'Blocked'].includes(props.status)) return 'danger'
   return 'info'
 })
+
+const compactLabel = computed(() => {
+  if (props.type === 'patient') {
+    return { stable: 'S', warning: 'A', critical: 'H' }[props.status as PatientStatus]
+  }
+  return label.value.charAt(0)
+})
 </script>
 
 <template>
-  <span class="status-badge" :class="`status-${tone}`">{{ label }}</span>
+  <span class="status-badge" :class="[`status-${tone}`, { 'status-badge--compact': compact }]" :title="compact ? label : undefined" :aria-label="compact ? label : undefined">{{ compact ? compactLabel : label }}</span>
 </template>
 
 <style scoped>
@@ -38,6 +46,15 @@ const tone = computed(() => {
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.status-badge--compact {
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0;
+  border-radius: 50%;
 }
 
 .status-success {

@@ -29,6 +29,8 @@ export type ClassificationChange =
 
 export type RecordStatus = 'draft' | 'pending' | 'approved' | 'returned' | 'archived'
 
+export type RecordReviewDecision = 'approved' | 'returned' | 'archived'
+
 export type ConsultationStatus = 'waiting' | 'active' | 'completed'
 
 export type RemoteConsultationStatus = 'pending' | 'accepted' | 'inProgress' | 'completed'
@@ -98,6 +100,28 @@ export interface MedicalOrder {
   type: 'Medication' | 'Examination' | 'Laboratory' | 'Nursing'
   content: string
   status: 'active' | 'stopped'
+  createdAt: string
+  updatedAt: string
+  createdBy: string
+  stoppedAt?: string
+  stoppedBy?: string
+}
+
+export interface RecordReview {
+  id: string
+  decision: RecordReviewDecision
+  reviewer: string
+  note: string
+  createdAt: string
+}
+
+export interface AiGenerationMetadata {
+  generator: string
+  generatedAt: string
+  safetyWarnings: string[]
+  sourceIds: string[]
+  evidence?: { field: string; sourceId: string; quote: string }[]
+  followUpItems?: string[]
 }
 
 export interface MedicalRecord {
@@ -113,8 +137,15 @@ export interface MedicalRecord {
   aiGenerated: boolean
   sourceConsultationId?: string
   sourceSummaryUpdatedAt?: string
+  aiMetadata?: AiGenerationMetadata
   reviewNote?: string
+  reviewHistory: RecordReview[]
+  version: number
+  createdAt: string
   updatedAt: string
+  submittedAt?: string
+  reviewedAt?: string
+  reviewedBy?: string
 }
 
 export interface AuditLog {
@@ -144,6 +175,7 @@ export interface RemoteConsultation {
   reason: string
   requester: string
   experts: string[]
+  expertOpinions: { expert: string; text: string; recordedBy: string; recordedAt: string }[]
   materials: string[]
   status: RemoteConsultationStatus
   scheduledAt: string

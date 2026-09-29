@@ -96,7 +96,7 @@ syncPlan()
         <div class="panel-header"><div><h2 class="panel-title">Managed Patients</h2><p class="panel-subtitle">Select a patient to view the care plan</p></div></div>
         <div class="patient-list">
           <button v-for="patient in clinicalStore.patients" :key="patient.id" type="button" :class="{ active: patient.id === selectedPatientId }" @click="selectPatient(patient.id)">
-            <span>{{ patient.name.slice(-1) }}</span><div><strong>{{ patient.name }}</strong><small>{{ patient.diagnosis }}</small></div><StatusBadge :status="patient.status" type="patient" />
+            <span class="patient-avatar">{{ patient.name.slice(-1) }}</span><div><strong>{{ patient.name }}</strong><small>{{ patient.diagnosis }}</small></div><StatusBadge :status="patient.status" type="patient" compact />
           </button>
         </div>
       </article>
@@ -150,10 +150,11 @@ syncPlan()
 .health-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: start; }
 .patient-list-panel { position: sticky; top: 80px; }
 .patient-list { display: grid; }
-.patient-list button { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 70px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); text-align: left; background: #fff; cursor: pointer; }
+.patient-list button { display: grid; grid-template-columns: 34px minmax(0, 1fr) 26px; align-items: center; gap: 9px; width: 100%; min-width: 0; min-height: 70px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); text-align: left; background: #fff; cursor: pointer; }
 .patient-list button:last-child { border-bottom: 0; }.patient-list button:hover { background: var(--panel-soft); }.patient-list button.active { background: #eef5f7; box-shadow: inset 3px 0 0 var(--primary); }
-.patient-list button > span { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; color: var(--primary); font-weight: 700; background: #e7f0f3; }
-.patient-list strong, .patient-list small { display: block; }.patient-list strong { color: var(--text-strong); font-size: 12px; }.patient-list small { margin-top: 4px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.patient-list .patient-avatar { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; color: var(--primary); font-weight: 700; background: #e7f0f3; }
+.patient-list button > div { min-width: 0; }
+.patient-list strong, .patient-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.patient-list strong { color: var(--text-strong); font-size: 12px; }.patient-list small { margin-top: 4px; color: var(--muted); font-size: 10px; }
 .health-main { display: grid; gap: 16px; min-width: 0; }
 .patient-summary-strip { display: grid; grid-template-columns: 1.25fr repeat(3, 1fr); border: 1px solid var(--border); border-radius: var(--radius); background: #fff; }
 .patient-summary-strip > div { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 14px 16px; border-right: 1px solid var(--border); }.patient-summary-strip > div:last-child { border-right: 0; }

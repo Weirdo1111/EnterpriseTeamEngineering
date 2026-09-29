@@ -3,7 +3,7 @@ import type { ConsultationSession, MedicalOrder, MedicalRecord, Role } from '@/t
 import { consultationRecordDraft } from '@/utils/consultation-records'
 
 export const CONSULTATION_RECORDS_STORAGE_KEY = 'doctor-platform-consultation-records-v1'
-export const CONSULTATION_RECORDS_STORAGE_VERSION = 1
+export const CONSULTATION_RECORDS_STORAGE_VERSION = 2
 type RecordFields = Pick<MedicalRecord, 'chiefComplaint' | 'presentIllness' | 'diagnosis'>
 type OrderInput = Pick<MedicalOrder, 'type' | 'content'>
 type ReviewStatus = 'approved' | 'returned' | 'archived'
@@ -32,14 +32,40 @@ function validRecord(value: unknown): value is MedicalRecord {
     && new Set(value.orders.map(order => order.id)).size === value.orders.length
 }
 
+function validWorkflowMetadata(record: MedicalRecord) {
+  return Number.isSafeInteger(record.version) && record.version >= 1 && timestamp(record.createdAt)
+    && Array.isArray(record.reviewHistory) && record.reviewHistory.every(review => object(review)
+      && text(review.id) && ['approved', 'returned', 'archived'].includes(review.decision as string)
+      && text(review.reviewer) && text(review.note) && timestamp(review.createdAt))
+    && record.orders.every(order => timestamp(order.createdAt) && timestamp(order.updatedAt) && text(order.createdBy))
+}
+
+/** Legacy local records predate workflow metadata; preserve their content without writing on read. */
+function migrateLegacyRecord(record: MedicalRecord): MedicalRecord {
+  return {
+    ...record,
+    version: 1,
+    createdAt: record.updatedAt,
+    reviewHistory: [],
+    orders: record.orders.map(order => ({
+      ...order,
+      createdAt: record.updatedAt,
+      updatedAt: record.updatedAt,
+      createdBy: 'Legacy record (author not recorded)',
+    })),
+  }
+}
+
 export function createLocalConsultationRecordService(options: {
   storage: () => Pick<Storage, 'getItem' | 'setItem'>
   role: () => Role
+  owner?: () => string
   uuid?: () => string
   now?: () => string
 }) {
   const uuid = options.uuid ?? (() => crypto.randomUUID())
   const now = options.now ?? (() => new Date().toISOString())
+  const owner = options.owner ?? (() => options.role() === 'seniorDoctor' ? 'Senior Physician' : 'Physician')
 
   function list(): MedicalRecord[] {
     let raw: string | null
@@ -48,18 +74,20 @@ export function createLocalConsultationRecordService(options: {
     if (raw === null) return []
     try {
       const saved: unknown = JSON.parse(raw)
-      if (!object(saved) || saved.version !== CONSULTATION_RECORDS_STORAGE_VERSION || !Array.isArray(saved.records)
+      if (!object(saved) || ![1, CONSULTATION_RECORDS_STORAGE_VERSION].includes(saved.version as number) || !Array.isArray(saved.records)
         || !saved.records.every(validRecord)
         || new Set(saved.records.map(record => record.id)).size !== saved.records.length
         || new Set(saved.records.map(record => record.sourceConsultationId)).size !== saved.records.length) throw new Error('Invalid records')
-      return saved.records
+      const records = saved.version === 1 ? saved.records.map(migrateLegacyRecord) : saved.records
+      if (!records.every(validWorkflowMetadata)) throw new Error('Invalid workflow metadata')
+      return records
     } catch {
       throw new Error('Consultation medical records are damaged or use an unsupported format. Saved data has been kept unchanged.')
     }
   }
 
   function commit(records: MedicalRecord[]) {
-    if (!records.every(validRecord)) throw new Error('Invalid medical record data. Saved data has been kept unchanged.')
+    if (!records.every(record => validRecord(record) && validWorkflowMetadata(record))) throw new Error('Invalid medical record data. Saved data has been kept unchanged.')
     try { options.storage().setItem(CONSULTATION_RECORDS_STORAGE_KEY, JSON.stringify({ version: CONSULTATION_RECORDS_STORAGE_VERSION, records })) }
     catch { throw new Error('Unable to save the medical record in this browser. Your changes have not been saved; retry after checking storage permissions or space.') }
   }
@@ -68,13 +96,15 @@ export function createLocalConsultationRecordService(options: {
     if (!['doctor', 'seniorDoctor'].includes(options.role())) throw new Error('Your current role has read-only access to medical records.')
   }
 
-  function update(id: string, edit: (record: MedicalRecord) => void, review = false) {
+  function update(id: string, edit: (record: MedicalRecord) => void, review = false, expectedVersion?: number) {
     assertWrite()
     const records = list()
     const record = records.find(item => item.id === id)
     if (!record) throw new Error('The saved consultation medical record was not found. Reload records before trying again.')
     if (!review && !['draft', 'returned'].includes(record.status)) throw new Error('This medical record is read-only. Only draft or returned records can be edited.')
+    if (expectedVersion !== undefined && record.version !== expectedVersion) throw new Error('This record changed in another session. Reload it before saving again.')
     edit(record)
+    record.version += 1
     record.updatedAt = now()
     commit(records)
     return record
@@ -96,7 +126,7 @@ export function createLocalConsultationRecordService(options: {
       commit(records)
       return record
     },
-    save(id: string, fields: RecordFields, submit = false) {
+    save(id: string, fields: RecordFields, submit = false, expectedVersion?: number) {
       return update(id, record => {
         if (!object(fields) || !(['chiefComplaint', 'presentIllness', 'diagnosis'] as const).every(key => typeof fields[key] === 'string')) throw new Error('Enter valid medical record text.')
         if (fields.chiefComplaint.length > 1000 || fields.presentIllness.length > 12000 || fields.diagnosis.length > 3000) throw new Error('Medical record text exceeds the field limit.')
@@ -105,32 +135,41 @@ export function createLocalConsultationRecordService(options: {
         record.presentIllness = fields.presentIllness
         record.diagnosis = fields.diagnosis
         record.status = submit ? 'pending' : 'draft'
-      })
+        if (submit) {
+          record.submittedAt = now()
+          record.reviewNote = undefined
+        }
+      }, false, expectedVersion)
     },
-    addOrder(id: string, input: OrderInput) {
+    addOrder(id: string, input: OrderInput, expectedVersion?: number) {
       return update(id, record => {
         if (!object(input)) throw new Error('Enter valid order details.')
-        const order: MedicalOrder = { type: input.type, content: input.content, id: `O-${uuid()}`, status: 'active' }
+        const time = now()
+        const order: MedicalOrder = { type: input.type, content: input.content, id: `O-${uuid()}`, status: 'active', createdAt: time, updatedAt: time, createdBy: owner() }
         if (!validOrder(order)) throw new Error('Enter a valid order type and details.')
         record.orders.push(order)
-      })
+      }, false, expectedVersion)
     },
-    updateOrder(id: string, orderId: string, content: string) {
+    updateOrder(id: string, orderId: string, content: string, expectedVersion?: number) {
       return update(id, record => {
         const order = record.orders.find(item => item.id === orderId)
         if (!order || order.status !== 'active') throw new Error('Only an existing active order can be edited.')
         if (!text(content)) throw new Error('Enter the order details.')
         order.content = content
-      })
+        order.updatedAt = now()
+      }, false, expectedVersion)
     },
-    stopOrder(id: string, orderId: string) {
+    stopOrder(id: string, orderId: string, expectedVersion?: number) {
       return update(id, record => {
         const order = record.orders.find(item => item.id === orderId)
         if (!order) throw new Error('Order not found.')
         order.status = 'stopped'
-      })
+        order.updatedAt = now()
+        order.stoppedAt = now()
+        order.stoppedBy = owner()
+      }, false, expectedVersion)
     },
-    review(id: string, status: ReviewStatus, note: string) {
+    review(id: string, status: ReviewStatus, note: string, expectedVersion?: number) {
       if (options.role() !== 'seniorDoctor') throw new Error('Only a senior physician can review or archive medical records.')
       return update(id, record => {
         if (!text(note)) throw new Error('Enter a review note.')
@@ -139,7 +178,10 @@ export function createLocalConsultationRecordService(options: {
         }
         record.status = status
         record.reviewNote = note
-      }, true)
+        record.reviewedAt = now()
+        record.reviewedBy = owner()
+        record.reviewHistory.push({ id: `RR-${uuid()}`, decision: status, reviewer: owner(), note, createdAt: now() })
+      }, true, expectedVersion)
     },
   }
 }
@@ -147,4 +189,5 @@ export function createLocalConsultationRecordService(options: {
 export const consultationRecordService = createLocalConsultationRecordService({
   storage: () => window.localStorage,
   role: () => useAuthStore().currentRole,
+  owner: () => useAuthStore().profile.name,
 })

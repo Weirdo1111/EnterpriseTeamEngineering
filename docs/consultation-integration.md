@@ -1,6 +1,6 @@
 # Consultation integration boundary
 
-This document describes current clinical adapter contracts, not agreed patient/consultation HTTP endpoints. Authentication now uses the confirmed `/api/auth/login`, `/api/auth/me`, and `/api/auth/logout` contract when `VITE_API_BASE_URL` is configured. See [the interface integration report](./接口对接结果与待联调.md) for verified branch changes and limitations. Clinical adapters remain local until the team supplies patient and consultation APIs.
+This document describes current clinical adapter contracts, not agreed patient/consultation HTTP endpoints. Authentication now uses the confirmed `/api/auth/login`, `/api/auth/me`, and `/api/auth/logout` contract when `VITE_API_BASE_URL` is configured. See [the interface integration report](./接口对接结果与待联调.md) for verified branch changes and limitations. Patient and consultation adapters remain local until the team supplies those APIs. General medical records and AI/RAG use the backend already integrated on main when configured.
 
 ## Current adapters
 
@@ -27,10 +27,10 @@ This document describes current clinical adapter contracts, not agreed patient/c
 | --- | --- | --- |
 | Conversations and summaries | localStorage `doctor-platform-consultations-v1` | payload v3; v1/v2 readable |
 | Original images | IndexedDB `doctor-platform-consultation-images`, `images` | existing adapter |
-| Consultation-derived medical records | localStorage `doctor-platform-consultation-records-v1` | payload v1 |
+| Consultation-derived medical records | localStorage `doctor-platform-consultation-records-v1` | payload v2; v1 readable |
 | Patient profiles | existing separate patient adapter | unchanged |
 
-There is no real patient messaging or server clinical archive in this version. TXT conversation export includes patient ID, current/snapshot names, saved text, summary and image metadata; original images are downloaded individually. Configured server authentication is isolated at `/connection` until real clinical services are connected; it does not access the local demo data. Video consultation, recording, patient-side integration, patient-level authorization and persistent audit remain separate integration work.
+There is no real patient messaging or server archive for consultation-derived records in this version. General medical records use the separate backend service when configured. TXT conversation export includes patient ID, current/snapshot names, saved text, summary and image metadata; original images are downloaded individually. Configured server authentication enables the workspace, including the backend medical-record and AI services. Patient and consultation pages still use shared fictional browser data, and source-linked records remain local; they are never silently sent to the backend. `/connection` displays the optional integration status. Video consultation, recording, patient-side integration, patient-level authorization and persistent audit remain separate integration work.
 
 ## Verification
 

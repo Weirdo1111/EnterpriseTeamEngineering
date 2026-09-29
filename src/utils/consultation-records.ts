@@ -21,6 +21,9 @@ export function consultationRecordDraft(session: ConsultationSession, doctor: st
     aiGenerated: false,
     sourceConsultationId: session.id,
     sourceSummaryUpdatedAt: summary.updatedAt,
+    reviewHistory: [],
+    version: 1,
+    createdAt: updatedAt,
     updatedAt,
   }
 }

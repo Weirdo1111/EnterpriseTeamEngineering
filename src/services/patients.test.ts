@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMockPatientService, PATIENT_STORAGE_KEY, PATIENT_STORAGE_VERSION } from './patients'
 import { patientsSeed } from '@/mocks/patients'
@@ -16,7 +16,7 @@ const input = (): PatientInput => ({ ...emptyPatientInput(), name: '演示测试
 describe('patient service', () => {
   let storage: ReturnType<typeof memoryStorage>
   let role: Role
-  let recovered: ReturnType<typeof vi.fn>
+  let recovered: Mock<(message: string) => void>
   const create = () => createMockPatientService({ storage: () => storage, role: () => role, owner: () => '测试Physician', onRecovery: recovered })
   beforeEach(() => { storage = memoryStorage(); role = 'doctor'; recovered = vi.fn() })
 

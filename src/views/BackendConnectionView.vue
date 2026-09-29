@@ -23,7 +23,7 @@ async function verifyAgain() {
     <section class="connection-card">
       <p class="eyebrow">Doctor Workspace · Server mode</p>
       <h1>Account verified</h1>
-      <p class="intro">Your account is signed in. The patient and consultation services are not connected to this workspace yet.</p>
+      <p class="intro">Your account is signed in. Medical records and clinical AI use the configured server.</p>
       <dl v-if="auth.currentUser">
         <div><dt>Name</dt><dd>{{ auth.currentUser.name }}</dd></div>
         <div><dt>Account</dt><dd>{{ auth.currentUser.account }}</dd></div>
@@ -31,9 +31,9 @@ async function verifyAgain() {
         <div><dt>Role</dt><dd>{{ auth.roleLabel }}</dd></div>
         <div><dt>Server</dt><dd>{{ authApi.baseUrl }}</dd></div>
       </dl>
-      <div class="connection-note"><strong>Clinical workspace unavailable</strong><p>Patient access and consultation storage must be connected before this account can open clinical data. Local demonstration records have not been loaded or uploaded.</p></div>
+      <div class="connection-note"><strong>Patient consultations are a local demonstration</strong><p>Patient profiles, messages, consultation summaries, and records linked from those summaries are stored in this browser. They are separate from server medical records and are not automatically uploaded.</p></div>
       <p v-if="message" role="status">{{ message }}</p>
-      <div class="connection-actions"><el-button :loading="checking" @click="verifyAgain">Verify session again</el-button><el-button :disabled="checking" @click="router.push({ name: 'login', query: { signout: '1' } })">Sign out</el-button></div>
+      <div class="connection-actions"><el-button type="primary" :disabled="checking" @click="router.push('/')">Open workspace</el-button><el-button :loading="checking" @click="verifyAgain">Verify session again</el-button><el-button :disabled="checking" @click="router.push({ name: 'login', query: { signout: '1' } })">Sign out</el-button></div>
       <p class="logout-note">Signing out clears this browser session. The current server does not revoke an already issued token.</p>
     </section>
   </main>

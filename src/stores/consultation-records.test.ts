@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { consultationRecordService, CONSULTATION_RECORDS_STORAGE_KEY } from '@/services/consultation-records'
 import { CONSULTATION_STORAGE_KEY } from '@/services/consultations'
+import { medicalRecordService } from '@/services/records'
+import { recordsSeed } from '@/mocks/records'
 import type { ConsultationSummaryInput } from '@/types/clinical'
 import { useClinicalStore } from './clinical'
 import { useAuthStore } from './auth'
@@ -63,7 +65,7 @@ describe('consultation medical record store integration', () => {
     const { store, session } = await savedSource()
     const demos = store.records.map(record => record.id)
     const record = await store.createConsultationRecord(session.id, actor)
-    store.saveRecord(record.id, fields, actor)
+    await store.saveRecord(record.id, fields, actor)
     const savedHistory = storage.getItem(CONSULTATION_STORAGE_KEY)
 
     setActivePinia(createPinia())
@@ -104,7 +106,7 @@ describe('consultation medical record store integration', () => {
     const operation = () => action === 'save'
       ? store.saveRecord(record.id, fields, actor)
       : store.addOrder(record.id, { type: 'Nursing', content: 'Manually entered example' }, actor)
-    expect(operation).toThrow('Unable to save')
+    await expect(operation()).rejects.toThrow('Unable to save')
     expect(JSON.stringify(store.records)).toBe(beforeRecords)
     expect(JSON.stringify(store.auditLogs)).toBe(beforeAudit)
     expect(storage.getItem(CONSULTATION_RECORDS_STORAGE_KEY)).toBe(beforeStored)
@@ -117,8 +119,8 @@ describe('consultation medical record store integration', () => {
     const beforeRecords = JSON.stringify(store.records)
     const beforeAudit = JSON.stringify(store.auditLogs)
     const storedPending = storage.getItem(CONSULTATION_RECORDS_STORAGE_KEY)
-    expect(() => store.saveRecord(record.id, fields, actor)).toThrow('read-only')
-    expect(() => store.addOrder(record.id, { type: 'Nursing', content: 'Example' }, actor)).toThrow('read-only')
+    await expect(store.saveRecord(record.id, fields, actor)).rejects.toThrow('read-only')
+    await expect(store.addOrder(record.id, { type: 'Nursing', content: 'Example' }, actor)).rejects.toThrow('read-only')
     useAuthStore().currentRole = 'admin'
     await expect(store.createConsultationRecord(session.id, actor)).rejects.toThrow('read-only')
     expect(JSON.stringify(store.records)).toBe(beforeRecords)
@@ -154,5 +156,57 @@ describe('consultation medical record store integration', () => {
     expect(JSON.stringify(store.auditLogs)).toBe(beforeAudit)
     expect(storage.getItem(CONSULTATION_RECORDS_STORAGE_KEY)).toBeNull()
     expect(storage.getItem(CONSULTATION_STORAGE_KEY)).toBe('{damaged source')
+  })
+
+  it('preserves both record inventories whichever service reloads last', async () => {
+    const { store, session } = await savedSource()
+    const local = await store.createConsultationRecord(session.id, actor)
+    const server = { ...structuredClone(recordsSeed[0]!), id: 'SERVER-RECORD', patientName: 'Server record snapshot' }
+    vi.spyOn(medicalRecordService, 'list').mockResolvedValue([server])
+    await store.loadRecords(true)
+    expect(store.records.map(item => item.id)).toEqual([local.id, server.id])
+    await store.loadConsultationRecords(true)
+    expect(store.records.map(item => item.id)).toEqual([local.id, server.id])
+    await store.loadRecords(true)
+    expect(store.records.map(item => item.id)).toEqual([local.id, server.id])
+  })
+
+  it('routes local source-record edits locally and regular record edits through the medical record service', async () => {
+    const { store, session } = await savedSource()
+    const local = await store.createConsultationRecord(session.id, actor)
+    const regular = store.records.find(item => !item.sourceConsultationId)!
+    const update = vi.spyOn(medicalRecordService, 'updateClinicalFields').mockResolvedValue({ ...structuredClone(recordsSeed[0]!), ...fields, version: 2 })
+    await store.saveRecord(local.id, fields, actor)
+    expect(update).not.toHaveBeenCalled()
+    expect(consultationRecordService.list()[0]).toMatchObject({ ...fields, version: 2 })
+    await store.saveRecord(regular.id, fields, actor)
+    expect(update).toHaveBeenCalledExactlyOnceWith(regular.id, fields, 1)
+  })
+
+  it('rejects a stale linked draft without overwriting newer data or recording a success audit', async () => {
+    const { store, session } = await savedSource()
+    const local = await store.createConsultationRecord(session.id, actor)
+    consultationRecordService.save(local.id, { ...fields, diagnosis: 'Saved from another tab' })
+    const beforeAudit = JSON.stringify(store.auditLogs)
+    await expect(store.saveRecord(local.id, fields, actor)).rejects.toThrow('another session')
+    expect(consultationRecordService.list()[0]!.diagnosis).toBe('Saved from another tab')
+    expect(JSON.stringify(store.auditLogs)).toBe(beforeAudit)
+  })
+
+  it('keeps the committed version after a failed regular-record submission so an order can be added and submission retried', async () => {
+    const store = useClinicalStore()
+    const record = await medicalRecordService.createDraft({ patientId: 'P-202609-001', patientName: 'Jianguo Zhang', ...fields, orders: [] })
+    await store.loadRecords()
+    const edited = { ...fields, presentIllness: 'Clinician changes saved before submission validation' }
+    const beforeAudit = JSON.stringify(store.auditLogs)
+    await expect(store.saveRecord(record.id, edited, actor, true)).rejects.toThrow('active medical order')
+    expect(store.records.find(item => item.id === record.id)).toMatchObject({ ...edited, status: 'draft', version: 2 })
+    expect(await medicalRecordService.getById(record.id)).toMatchObject({ ...edited, status: 'draft', version: 2 })
+    expect(JSON.stringify(store.auditLogs)).toBe(beforeAudit)
+
+    await expect(store.addOrder(record.id, { type: 'Nursing', content: 'Manually specified follow-up' }, actor)).resolves.toMatchObject({ version: 3 })
+    await expect(store.saveRecord(record.id, edited, actor, true)).resolves.toMatchObject({ status: 'pending', version: 5 })
+    expect(store.records.find(item => item.id === record.id)).toMatchObject({ status: 'pending', version: 5 })
+    expect(store.auditLogs.filter(log => log.resource === record.id && log.action === 'Submitted medical record for review')).toHaveLength(1)
   })
 })

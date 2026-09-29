@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, CalendarClock, FileText, MessageSquareText, Sparkles, Video } from '@lucide/vue'
+import { ArrowRight, CalendarClock, FileText, MessageSquareText, Sparkles, UsersRound } from '@lucide/vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useClinicalStore } from '@/stores/clinical'
@@ -19,16 +19,16 @@ const actor = computed(() => ({
 }))
 
 const summary = computed(() => [
-  { label: 'Waiting', value: clinicalStore.waitingConsultations.length, note: 'Online consultation queue' },
+  { label: 'Patient Visits', value: clinicalStore.waitingConsultations.length, note: 'Waiting for a physician' },
   { label: 'Priority Patients', value: clinicalStore.warningPatients.length, note: 'Requires close follow-up' },
   { label: 'Records Pending Review', value: clinicalStore.pendingRecords.length, note: 'Awaiting senior physician review' },
-  { label: 'Consultation Tasks', value: clinicalStore.pendingRemoteConsultations.length, note: 'Remote collaboration tasks' },
+  { label: 'Group Reviews', value: clinicalStore.pendingRemoteConsultations.length, note: 'Specialist case-review requests' },
 ])
 
 const tasks = computed(() => [
-  { id: 'T-01', time: '10:00', title: 'Prioritize response to Desheng Wang for dyspnea and low oxygen saturation', meta: 'Online consultation · High risk', tone: 'danger', path: '/consultation' },
+  { id: 'T-01', time: '10:00', title: 'Prioritize response to Desheng Wang for dyspnea and low oxygen saturation', meta: 'Patient online visit · High risk', tone: 'danger', path: '/consultation' },
   { id: 'T-02', time: '11:30', title: "Review Jianguo Zhang's three-day home blood pressure log", meta: 'Chronic care · Due today', tone: 'warning', path: '/patients?patient=P-202609-001' },
-  { id: 'T-03', time: '14:30', title: 'Respiratory consultation for Desheng Wang', meta: 'Accepted · Documents ready', tone: 'primary', path: '/remote-consultations' },
+  { id: 'T-03', time: '14:30', title: 'Respiratory group case review for Desheng Wang', meta: 'Accepted · Documents ready', tone: 'primary', path: '/remote-consultations' },
   { id: 'T-04', time: '16:00', title: "Reassess Xiulan Chen's postoperative rehabilitation plan", meta: 'Health management · Periodic assessment', tone: 'info', path: '/health-management?patient=P-202609-002' },
 ])
 
@@ -48,7 +48,7 @@ function openPatient(id: string) {
 <template>
   <div class="view-stack">
     <PageHeader title="Doctor Dashboard" :description="`${authStore.profile.department} · Today's clinical tasks and priority patients`">
-      <el-button type="primary" @click="router.push('/consultation')">Open Consultations</el-button>
+      <el-button type="primary" @click="router.push('/consultation')">Open Patient Visits</el-button>
       <el-button @click="router.push('/patients')">View Patients</el-button>
     </PageHeader>
 
@@ -78,7 +78,7 @@ function openPatient(id: string) {
 
       <article class="panel queue-panel">
         <div class="panel-header">
-          <div><h2 class="panel-title">Consultation Queue</h2><p class="panel-subtitle">Active sessions and consultations waiting to be accepted</p></div>
+          <div><h2 class="panel-title">Patient Visit Queue</h2><p class="panel-subtitle">Active and waiting patient conversations</p></div>
           <MessageSquareText :size="18" class="header-icon" />
         </div>
         <el-alert v-if="clinicalStore.consultationsError" title="Local consultation history could not be loaded. Open Consultations to retry." type="error" :closable="false" show-icon />
@@ -122,7 +122,7 @@ function openPatient(id: string) {
           <div class="panel-header"><div><h2 class="panel-title">Quick Actions</h2></div></div>
           <div class="quick-links">
             <button type="button" @click="router.push('/records')"><FileText :size="18" /><span>Create Medical Record</span></button>
-            <button type="button" @click="router.push('/remote-consultations')"><Video :size="18" /><span>Start Remote Consultation</span></button>
+            <button type="button" @click="router.push('/remote-consultations')"><UsersRound :size="18" /><span>Group Case Review</span></button>
           </div>
         </article>
         <article class="assist-note">

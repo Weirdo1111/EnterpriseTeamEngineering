@@ -1,4 +1,8 @@
 node_modules/
+backend/.env
+backend/dist/
+backend/data/open-datasets/
+backend/data/ddinter/
 node_modules.incomplete-install*/
 dist/
 .vite/
@@ -6,6 +10,7 @@ work/
 *.local
 *.log
 tsconfig.tsbuildinfo
+reports/preview-*/
 
 # OS / editor
 .DS_Store
