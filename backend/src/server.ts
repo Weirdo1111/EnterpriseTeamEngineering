@@ -2,6 +2,12 @@ import 'dotenv/config'
 import express, { type ErrorRequestHandler } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import { startCodeWorker } from './auth/worker.js'
+import { createCodeAuth } from './auth/codes.js'
+import { createCodeSender } from './auth/delivery.js'
+import { createTencentFaceVerifier } from './auth/tencent-face.js'
+import { createFaceAuth } from './auth/face.js'
+import { createFaceLimits } from './auth/face-limits.js'
 import { createDb } from './db.js'
 import { createAuthRouter } from './routes/auth.js'
 import { createRecordRepository } from './records/repository.js'
@@ -19,6 +25,9 @@ import { createRagRouter } from './routes/rag.js'
 async function main() {
   const secret = process.env.JWT_SECRET
   if (!secret || secret.length < 32) throw new Error('JWT_SECRET must contain at least 32 characters in backend/.env')
+  const sender = createCodeSender()
+  const codeSecret = process.env.AUTH_CODE_SECRET
+  if (!codeSecret || codeSecret.length < 32) throw new Error('AUTH_CODE_SECRET must contain at least 32 characters')
   const db = createDb()
   try {
     await db.check()
@@ -26,8 +35,10 @@ async function main() {
     app.disable('x-powered-by')
     app.use(helmet())
     app.use(cors({ origin: ['http://127.0.0.1:5173', 'http://localhost:5173'] }))
+    const codes = createCodeAuth(db.pool, sender, codeSecret)
+    const faces = createFaceAuth(db, createTencentFaceVerifier(), createFaceLimits(db.pool, codeSecret))
+    app.use('/api/auth', createAuthRouter(db, secret, codes, faces))
     app.use(express.json({ limit: '16kb' }))
-    app.use('/api/auth', createAuthRouter(db, secret))
     app.use('/api/records', createRecordsRouter(db, secret, createRecordService(createRecordRepository(db.pool)), db.pool))
     const knowledge = createKnowledgeRepository(db.pool)
     const ark = createArkClient(arkConfig())
@@ -39,8 +50,9 @@ async function main() {
     app.use(errors)
     const port = Number(process.env.PORT || 3000)
     const server = app.listen(port, '127.0.0.1', () => console.log(`Backend listening on http://127.0.0.1:${port}`))
+    const stopWorker = startCodeWorker(codes)
     for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-      process.on(signal, () => server.close(() => { void db.close() }))
+      process.on(signal, () => server.close(() => { void stopWorker().then(() => db.close()) }))
     }
   } catch (error) {
     await db.close()

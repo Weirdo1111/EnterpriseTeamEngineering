@@ -44,6 +44,8 @@ try {
   const username = (await prompt.question('Username: ')).trim()
   const name = (await prompt.question('Name: ')).trim()
   const emailInput = (await prompt.question('Email (optional): ')).trim()
+  const phoneInput = (await prompt.question('Phone in E.164 format, e.g. +8613800000000 (optional): ')).trim()
+  if (phoneInput && !/^\+[1-9]\d{7,14}$/.test(phoneInput)) throw new Error('Phone must use E.164 format, or be empty.')
   const role = (await prompt.question('Role (doctor/seniorDoctor/admin): ')).trim()
 
   if (!username || username.length > 50 || !name || name.length > 100) {
@@ -72,8 +74,8 @@ try {
 
   const passwordHash = await argon2.hash(password, { type: argon2.argon2id })
   await connection.execute(
-    'INSERT INTO users (username, password_hash, name, email, role, status) VALUES (?, ?, ?, ?, ?, ?)',
-    [username, passwordHash, name, emailInput || null, role, 'active'],
+    'INSERT INTO users (username, password_hash, name, email, phone, role, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [username, passwordHash, name, emailInput || null, phoneInput || null, role, 'active'],
   )
   console.log(`Created user ${username} with role ${role}.`)
 } catch (error) {

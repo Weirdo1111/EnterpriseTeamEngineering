@@ -6,17 +6,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "node --test dist/db.node-test.js dist/routes/auth.node-test.js dist/routes/rag.node-test.js dist/records/service.node-test.js dist/ai/service.node-test.js dist/ai/synthetic-narrative.node-test.js dist/ai/medication-safety.node-test.js dist/ai/ddinter.node-test.js dist/ai/similar.node-test.js dist/rag/service.node-test.js dist/rag/fhir.node-test.js dist/rag/precision-retrieval.node-test.js dist/rag/evaluation-metrics.node-test.js dist/rag/clinical-pages.node-test.js dist/rag/repository.node-test.js scripts/dataset-selection.node-test.js",
-    "test:integration": "npm run build && node scripts/run-integration-tests.js",
     "migrate": "node scripts/migrate.js",
     "create-user": "node scripts/create-user.js",
-    "seed:demo": "node scripts/seed-demo-users.js",
     "datasets:fetch": "node scripts/fetch-open-datasets.js",
     "datasets:ingest": "node scripts/ingest-open-datasets.js",
-    "datasets:verify": "node scripts/verify-clinical-guidance.js",
     "ddinter:prepare": "node scripts/prepare-ddinter.js",
     "ingest": "node dist/rag/ingest.js",
-    "eval:rag": "node dist/rag/evaluate.js"
+    "eval:rag": "node dist/rag/evaluate.js",
+    "delete-user": "node scripts/delete-user.js",
+    "build:auth": "tsc -p tsconfig.auth.json"
   },
   "dependencies": {
     "argon2": "0.45.1",
@@ -35,8 +33,6 @@
     "@types/express": "5.0.6",
     "@types/jsonwebtoken": "9.0.10",
     "@types/node": "26.6.2",
-    "@types/supertest": "7.2.1",
-    "supertest": "7.2.2",
     "typescript": "7.0.2"
   }
 }

@@ -33,10 +33,16 @@ const roleProfiles: Record<Role, UserProfile> = {
 
 export const useAuthStore = defineStore('auth', () => {
   const token = shallowRef(localStorage.getItem('doctor-platform-token') ?? '')
-  const currentRole = shallowRef<Role>((localStorage.getItem('doctor-platform-role') as Role) ?? 'doctor')
+  const currentRole = shallowRef<Role>('doctor')
+  // Roles come from the backend, never from a cached demo selection.
+  localStorage.removeItem('doctor-platform-role')
+  if (token.value.startsWith('demo-')) {
+    token.value = ''
+    localStorage.removeItem('doctor-platform-token')
+  }
   const currentUser = shallowRef<AuthenticatedUser | null>(null)
 
-  const isAuthenticated = computed(() => token.value.length > 0)
+  const isAuthenticated = computed(() => Boolean(token.value && currentUser.value))
   const profile = computed(() => ({ ...roleProfiles[currentRole.value], name: currentUser.value?.name ?? roleProfiles[currentRole.value].name }))
   const roleLabel = computed(() => {
     if (currentRole.value === 'admin') return 'Administrator'
@@ -44,48 +50,70 @@ export const useAuthStore = defineStore('auth', () => {
     return 'Physician'
   })
 
-  function login(role: Role) {
-    currentRole.value = role
-    token.value = `demo-${role}-token`
-    localStorage.setItem('doctor-platform-token', token.value)
-    localStorage.setItem('doctor-platform-role', role)
+  let sessionVersion = 0
+
+  function clearSession() {
+    sessionVersion++
+    token.value = ''
+    currentUser.value = null
+    currentRole.value = 'doctor'
+    localStorage.removeItem('doctor-platform-token')
+    localStorage.removeItem('doctor-platform-role')
+  }
+
+  function applyUser(user: AuthenticatedUser) {
+    if (!user || !['doctor', 'seniorDoctor', 'admin'].includes(user.role)) throw new Error('Invalid authenticated user')
+    currentUser.value = user
+    currentRole.value = user.role
+  }
+
+  async function completeLogin(request: Promise<{ token: string; user: AuthenticatedUser }>) {
+    const version = ++sessionVersion
+    const result = await request
+    if (version !== sessionVersion) throw new Error('Sign-in cancelled')
+    if (!result.token || result.token.startsWith('demo-')) throw new Error('Invalid authentication token')
+    applyUser(result.user)
+    token.value = result.token
+    localStorage.setItem('doctor-platform-token', result.token)
   }
 
   async function loginWithPassword(account: string, password: string) {
-    const result = await authApi.login(account, password)
-    currentUser.value = result.user
-    currentRole.value = result.user.role
-    token.value = result.token
-    localStorage.setItem('doctor-platform-token', result.token)
-    localStorage.setItem('doctor-platform-role', result.user.role)
+    await completeLogin(authApi.login(account, password))
+  }
+
+  async function loginWithEmail(account: string, code: string) {
+    await completeLogin(authApi.loginWithEmail(account, code))
+  }
+
+  async function loginWithFace(account: string, image: string) {
+    await completeLogin(authApi.loginWithFace(account, image))
   }
 
   async function restoreSession() {
-    if (!authApi.enabled || !token.value || token.value.startsWith('demo-')) return
+    if (!token.value) return
+    const version = sessionVersion
     const result = await authApi.me()
-    currentUser.value = result.user
-    currentRole.value = result.user.role
-    localStorage.setItem('doctor-platform-role', result.user.role)
+    if (version === sessionVersion) applyUser(result.user)
   }
 
   async function logout() {
-    if (authApi.enabled && token.value && !token.value.startsWith('demo-')) {
-      try { await authApi.logout() } catch { /* Local logout must still succeed. */ }
-    }
-    token.value = ''
-    currentUser.value = null
-    localStorage.removeItem('doctor-platform-token')
+    const pending = authApi.enabled && token.value ? authApi.logout().catch(() => {}) : Promise.resolve()
+    clearSession()
+    await pending
   }
 
   return {
     token,
     currentRole,
+    currentUser,
     isAuthenticated,
     profile,
     roleLabel,
     usesBackend: authApi.enabled,
-    login,
+    clearSession,
     loginWithPassword,
+    loginWithEmail,
+    loginWithFace,
     restoreSession,
     logout,
   }
